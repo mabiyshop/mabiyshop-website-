@@ -525,7 +525,7 @@
 												<div class="col-12 col-sm-12 col-md-12"><p>{{ $t('Return & Warranty') }}</p></div>
 												<div class="col-1 col-sm-1 col-md-1"><i class="fa fa-refresh" aria-hidden="true"></i></div>
 												<div class="col-11 col-sm-11 col-md-11">
-													{{ $t('7 Days Return') }} <br />
+													{{ $t('3 Days Return') }} <br />
 													<span v-if="metas.meta_value.allow_change_of_mind == 'on'"> <small>{{ $t('Change of mind is applicable') }}</small></span>
 													<span v-else> <small>{{ $t('Change of mind is not applicable') }}</small> </span>
 												</div>
