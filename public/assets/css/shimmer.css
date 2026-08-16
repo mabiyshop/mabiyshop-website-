@@ -1,0 +1,329 @@
+/***
+    Shimmer v1.0
+    Developed by Dhaka IT Solutions
+    info@dhakaitsolutions.com
+    www.dhakaitsolutions.com
+*/
+
+.shimmer div {
+  background: #f6f7f8;
+  background-image: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+  background-repeat: no-repeat;
+  background-size: cover; 
+  display: inline-block;
+  position: relative; 
+  -webkit-animation-duration: 1s;
+  -webkit-animation-fill-mode: forwards; 
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-name: htmlShimmerLoader;
+  -webkit-animation-timing-function: linear;
+}
+.shimmer .w_50p{width: 50px;}
+
+.shimmer .w_2{width: 2vw;}
+.shimmer .w_3{width: 3vw;}
+.shimmer .w_4{width: 4vw;}
+.shimmer .w_5{width: 5vw;}
+.shimmer .w_6{width: 6vw;}
+.shimmer .w_7{width: 7vw;}
+.shimmer .w_10{width: 10vw;}
+.shimmer .w_12{width: 12vw;}
+.shimmer .w_13{width: 13vw;}
+.shimmer .w_15{width: 15vw;}
+.shimmer .w_20{width: 20vw;}
+.shimmer .w_25{width: 25vw;}
+.shimmer .w_30{width: 30vw;}
+.shimmer .w_35{width: 35vw;}
+.shimmer .w_40{width: 40vw;}
+.shimmer .w_45{width: 45vw;}
+.shimmer .w_50{width: 50vw;}
+.shimmer .w_55{width: 55vw;}
+.shimmer .w_60{width: 60vw;}
+.shimmer .w_65{width: 65vw;}
+.shimmer .w_70{width: 70vw;}
+.shimmer .w_75{width: 75vw;}
+.shimmer .w_80{width: 80vw;}
+.shimmer .w_85{width: 85vw;}
+.shimmer .w_90{width: 90vw;}
+.shimmer .w_95{width: 95vw;}
+.shimmer .w_100{width: 100vw;}
+.shimmer .w_100per{width: 100%;}
+.shimmer .w_48per{width: 48%;}
+.shimmer .w_70per{width: 70%;}
+.shimmer .w_65per{width: 65%;}
+.shimmer .w_50per{width: 50%;}
+.shimmer .w_15per{width: 15%;}
+
+.shimmer .h_2{height: 2vh;}
+.shimmer .h_3{height: 3vh;}
+.shimmer .h_4{height: 4vh;}
+.shimmer .h_5{height: 5vh;}
+.shimmer .h_6{height: 6vh;}
+.shimmer .h_7{height: 7vh;}
+.shimmer .h_10{height: 10vh;}
+.shimmer .h_15{height: 15vh;}
+.shimmer .h_20{height: 20vh;}
+.shimmer .h_25{height: 25vh;}
+.shimmer .h_30{height: 30vh;}
+.shimmer .h_35{height: 35vh;}
+.shimmer .h_40{height: 40vh;}
+.shimmer .h_45{height: 45vh;}
+.shimmer .h_50{height: 50vh;}
+.shimmer .h_55{height: 55vh;}
+.shimmer .h_60{height: 60vh;}
+.shimmer .h_65{height: 65vh;}
+.shimmer .h_70{height: 70vh;}
+.shimmer .h_75{height: 75vh;}
+.shimmer .h_80{height: 80vh;}
+.shimmer .h_85{height: 85vh;}
+.shimmer .h_90{height: 90vh;}
+.shimmer .h_95{height: 95vh;}
+.shimmer .h_100{height: 100vh;}
+
+
+.shimmer .h_2p{height: 2px}
+.shimmer .h_5p{height: 5px}
+.shimmer .h_10p{height: 10px;}
+.shimmer .h_15p{height: 15px;}
+.shimmer .h_20p{height: 20px}
+.shimmer .h_25p{height: 25px;}
+.shimmer .h_30p{height: 30px;}
+.shimmer .h_35p{height: 35px;}
+.shimmer .h_40p{height: 40px;}
+.shimmer .h_45p{height: 45px;}
+.shimmer .h_50p{height: 50px;}
+.shimmer .h_55p{height: 55px;}
+.shimmer .h_60p{height: 60px;}
+.shimmer .h_65p{height: 65px;}
+.shimmer .h_70p{height: 70px;}
+.shimmer .h_75p{height: 75px;}
+.shimmer .h_80p{height: 80px;}
+.shimmer .h_85p{height: 85px;}
+.shimmer .h_90p{height: 90px;}
+.shimmer .h_95p{height: 95px;}
+.shimmer .h_100p{height: 100px;}
+.shimmer .h_150p {height: 150px;}
+.shimmer .h_200p {height: 200px;}
+.shimmer .h_250p {height: 250px;}
+.shimmer .h_300p {height: 300px;}
+
+
+
+.shimmer .ml_2{margin-left: 2px}
+.shimmer .ml_5{margin-left: 5px}
+.shimmer .ml_10{margin-left: 10px;}
+.shimmer .ml_15{margin-left: 15px;}
+.shimmer .ml_20{margin-left: 20px}
+.shimmer .ml_25{margin-left: 25px;}
+.shimmer .ml_30{margin-left: 30px;}
+.shimmer .ml_35{margin-left: 35px;}
+.shimmer .ml_40{margin-left: 40px;}
+.shimmer .ml_45{margin-left: 45px;}
+.shimmer .ml_50{margin-left: 50px;}
+.shimmer .ml_55{margin-left: 55px;}
+.shimmer .ml_60{margin-left: 60px;}
+.shimmer .ml_65{margin-left: 65px;}
+.shimmer .ml_70{margin-left: 70px;}
+.shimmer .ml_75{margin-left: 75px;}
+.shimmer .ml_80{margin-left: 80px;}
+.shimmer .ml_85{margin-left: 85px;}
+.shimmer .ml_90{margin-left: 90px;}
+.shimmer .ml_95{margin-left: 95px;}
+.shimmer .ml_100{margin-left: 100px;}
+.shimmer .ml_150{margin-left: 150px;}
+.shimmer .ml_200{margin-left: 200px;}
+.shimmer .ml_250{margin-left: 250px;}
+.shimmer .ml_300{margin-left: 300px;}
+
+.shimmer .mr_2{margin-right: 2px}
+.shimmer .mr_3{margin-right: 3px}
+.shimmer .mr_4{margin-right: 4px}
+.shimmer .mr_5{margin-right: 5px}
+.shimmer .mr_10{margin-right: 10px;}
+.shimmer .mr_15{margin-right: 15px;}
+.shimmer .mr_20{margin-right: 20px}
+.shimmer .mr_25{margin-right: 25px;}
+.shimmer .mr_30{margin-right: 30px;}
+.shimmer .mr_35{margin-right: 35px;}
+.shimmer .mr_40{margin-right: 40px;}
+.shimmer .mr_45{margin-right: 45px;}
+.shimmer .mr_50{margin-right: 50px;}
+.shimmer .mr_55{margin-right: 55px;}
+.shimmer .mr_60{margin-right: 60px;}
+.shimmer .mr_65{margin-right: 65px;}
+.shimmer .mr_70{margin-right: 70px;}
+.shimmer .mr_75{margin-right: 75px;}
+.shimmer .mr_80{margin-right: 80px;}
+.shimmer .mr_85{margin-right: 85px;}
+.shimmer .mr_90{margin-right: 90px;}
+.shimmer .mr_95{margin-right: 95px;}
+.shimmer .mr_100{margin-right: 100px;}
+.shimmer .mr_150{margin-right: 150px;}
+.shimmer .mr_200{margin-right: 200px;}
+.shimmer .mr_250{margin-right: 250px;}
+.shimmer .mr_300{margin-right: 300px;}
+
+
+.shimmer .mt_2{margin-top: 2px}
+.shimmer .mt_3{margin-top: 3px}
+.shimmer .mt_5{margin-top: 5px}
+.shimmer .mt_10{margin-top: 10px;}
+.shimmer .mt_15{margin-top: 15px;}
+.shimmer .mt_20{margin-top: 20px}
+.shimmer .mt_25{margin-top: 25px;}
+.shimmer .mt_30{margin-top: 30px;}
+.shimmer .mt_35{margin-top: 35px;}
+.shimmer .mt_40{margin-top: 40px;}
+.shimmer .mt_45{margin-top: 45px;}
+.shimmer .mt_50{margin-top: 50px;}
+.shimmer .mt_55{margin-top: 55px;}
+.shimmer .mt_60{margin-top: 60px;}
+.shimmer .mt_65{margin-top: 65px;}
+.shimmer .mt_70{margin-top: 70px;}
+.shimmer .mt_75{margin-top: 75px;}
+.shimmer .mt_80{margin-top: 80px;}
+.shimmer .mt_85{margin-top: 85px;}
+.shimmer .mt_90{margin-top: 90px;}
+.shimmer .mt_95{margin-top: 95px;}
+.shimmer .mt_100{margin-top: 100px;}
+.shimmer .mt_150{margin-top: 150px;}
+.shimmer .mt_200{margin-top: 200px;}
+.shimmer .mt_250{margin-top: 250px;}
+.shimmer .mt_300{margin-top: 300px;}
+
+.shimmer .mb_2{margin-bottom: 2px}
+.shimmer .mb_3{margin-bottom: 3px}
+.shimmer .mb_4{margin-bottom: 4px}
+.shimmer .mb_5{margin-bottom: 5px}
+.shimmer .mb_10{margin-bottom: 10px;}
+.shimmer .mb_15{margin-bottom: 15px;}
+.shimmer .mb_20{margin-bottom: 20px}
+.shimmer .mb_25{margin-bottom: 25px;}
+.shimmer .mb_30{margin-bottom: 30px;}
+.shimmer .mb_35{margin-bottom: 35px;}
+.shimmer .mb_40{margin-bottom: 40px;}
+.shimmer .mb_45{margin-bottom: 45px;}
+.shimmer .mb_50{margin-bottom: 50px;}
+.shimmer .mb_55{margin-bottom: 55px;}
+.shimmer .mb_60{margin-bottom: 60px;}
+.shimmer .mb_65{margin-bottom: 65px;}
+.shimmer .mb_70{margin-bottom: 70px;}
+.shimmer .mb_75{margin-bottom: 75px;}
+.shimmer .mb_80{margin-bottom: 80px;}
+.shimmer .mb_85{margin-bottom: 85px;}
+.shimmer .mb_90{margin-bottom: 90px;}
+.shimmer .mb_95{margin-bottom: 95px;}
+.shimmer .mb_100{margin-bottom: 100px;}
+.shimmer .mb_150{margin-bottom: 150px;}
+.shimmer .mb_200{margin-bottom: 200px;}
+.shimmer .mb_250{margin-bottom: 250px;}
+.shimmer .mb_300{margin-bottom: 300px;}
+
+
+
+.shimmer .r_2{margin-bottom: 2%;}
+.shimmer .r_5{margin-bottom: 5%;}
+.shimmer .r_10{margin-bottom: 10%;}
+.shimmer .r_15{margin-bottom: 15%;}
+.shimmer .r_20{margin-bottom: 20%;}
+.shimmer .r_25{margin-bottom: 25%;}
+.shimmer .r_30{margin-bottom: 30%;}
+.shimmer .r_35{margin-bottom: 35%;}
+.shimmer .r_40{margin-bottom: 40%;}
+.shimmer .r_45{margin-bottom: 45%;}
+.shimmer .r_50{margin-bottom: 50%;}
+
+
+.shimmer .circle_2 {border-radius: 50%;height: 2px;width: 2px;}
+.shimmer .circle_5 {border-radius: 50%;height: 5px;width: 5px;}
+.shimmer .circle_10 {border-radius: 50%;height: 10px;width: 10px;}
+.shimmer .circle_15 {border-radius: 50%;height: 15px;width: 15px;}
+.shimmer .circle_20 {border-radius: 50%;height: 20px;width: 20px;}
+.shimmer .circle_25 {border-radius: 50%;height: 25px;width: 25px;}
+.shimmer .circle_30 {border-radius: 50%;height: 30px;width: 30px;}
+.shimmer .circle_35 {border-radius: 50%;height: 35px;width: 35px;}
+.shimmer .circle_40 {border-radius: 50%;height: 40px;width: 40px;}
+.shimmer .circle_45 {border-radius: 50%;height: 45px;width: 45px;}
+.shimmer .circle_50 {border-radius: 50%;height: 50px;width: 50px;}
+.shimmer .circle_55 {border-radius: 50%;height: 55px;width: 55px;}
+.shimmer .circle_60 {border-radius: 50%;height: 60px;width: 60px;}
+.shimmer .circle_65 {border-radius: 50%;height: 65px;width: 65px;}
+.shimmer .circle_70 {border-radius: 50%;height: 70px;width: 70px;}
+.shimmer .circle_75 {border-radius: 50%;height: 75px;width: 75px;}
+.shimmer .circle_80 {border-radius: 50%;height: 80px;width: 80px;}
+.shimmer .circle_85 {border-radius: 50%;height: 85px;width: 85px;}
+.shimmer .circle_90 {border-radius: 50%;height: 90px;width: 90px;}
+.shimmer .circle_95 {border-radius: 50%;height: 95px;width: 95px;}
+.shimmer .circle_100 {border-radius: 50%;height: 100px;width: 100px;}
+.shimmer .circle_150 {border-radius: 50%;height: 150px;width: 150px;}
+.shimmer .circle_200 {border-radius: 50%;height: 200px;width: 200px;}
+.shimmer .circle_250 {border-radius: 50%;height: 250px;width: 250px;}
+.shimmer .circle_300{border-radius: 50%;height: 300px;width: 300px;}
+
+
+
+
+.shimmer .d_block{ display: block!important;}
+.shimmer .text_center{text-align: center;}
+.shimmer .text_left{text-align: left;}
+.shimmer .text_right{text-align: right;}
+.shimmer .d_in_block{ display: inline-block !important;}
+ 
+.shimmer .f_left{float: left;}
+.shimmer .f_right{float: right;}
+
+
+
+ @-webkit-keyframes htmlShimmerLoader {
+  0% {
+   background-position: -468px 0;
+  }
+  
+  100% {
+   background-position: 468px 0; 
+  }
+ }
+
+
+ @media(max-width: 575px) {
+.desktop_only{
+  display: none;
+} 
+.shimmer .h_55 {
+  height: 35vh;
+}
+}
+@media(max-width: 767px) {
+.page_shimmer .shimmer .mb_40 {
+    margin-bottom: 30px;
+}
+.page_shimmer .shimmer .mt_30 {
+    margin-top: 80px;
+}
+  .products_shimmer .h_20{
+    height: 40vh;
+  } 
+.seller_shimer{
+  height: 5vh !important;
+}
+
+.offer_shimmer .h_40 {
+  height: 30vh;
+}
+.offer_shimmer .h_20 {
+  height: 40vh !important;
+}
+
+
+.property_shimmer .h_2 {
+  height: 4vh;
+}
+
+.property_shimmer .w_10 {
+  width: 50vw;
+}
+.property_shimmer .w_5 {
+  width: 40vw;
+}
+}
+  

@@ -1,0 +1,283 @@
+    .chatig_parent {
+    background: #fff;
+    position: relative;
+    }
+
+    .chating-box-nav:hover{
+        cursor: pointer;
+    }
+    .chating-box-nav{
+        cursor: pointer;
+    }
+    .chating-box {
+        cursor: pointer;
+        position: fixed;
+        right: 20px;
+        bottom: 2%;
+        z-index: 999;
+        height: 40px;
+        width: 40px;
+        background: #252525;
+        border-radius: 50%;
+        color: #fff;
+        font-size: 24px;
+        padding: 0px 10px 10px 8px;
+        }
+    
+    .chating_wrapper {
+    cursor: pointer;
+    position: fixed;
+    right: 0px;
+    bottom: 0px;
+    z-index: 999;
+    width: 600px;
+    background: #fff;
+    color: #000;
+    font-size: 24px;
+    padding: 8px 15px 0px 15px;
+    border-radius: 4px 0px 0px 0px;
+    }
+    
+    .chating_body {
+    height: 500px;
+    overflow-y: auto;
+    padding-left: 8px;
+    }
+    
+    .chating_title {
+    font-size: 16px;
+    }
+    
+    .chating_icon .fa {
+    font-size: 16px;
+    }
+    
+    .chating_seller_title {
+    font-size: 16px;
+    }
+    
+    .chating_icon {
+    float: left;
+    padding-bottom: 15px;
+    }
+    
+    .close_chating {
+    float: right;
+    padding-left: 15px;
+    }
+    
+    .close_chating .fa-times {
+    font-size: 17px;
+    }
+    
+    .chating_header {
+        border-bottom: 1px solid #c9c9c9;
+        margin-left: -3px;
+    }
+    
+    .message_input{display: none;}
+    .empty_message {
+        text-align: center;
+        margin-top: 15vh;
+    }
+    
+    .new_message {
+        color: #db0f0f;
+        font-weight: bold;
+    }
+
+    .chat_unread *{
+        color: #db0f0f;
+        font-weight: bold;
+    }
+    
+    
+     .chating_wrapper ::-webkit-scrollbar {
+        width: 3px;
+      }
+      
+      .chating_wrapper ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+      }
+       
+      .chating_wrapper ::-webkit-scrollbar-thumb {
+        background: #888; 
+      }
+      
+      .chating_wrapper ::-webkit-scrollbar-thumb:hover {
+        background: #555; 
+      }
+    
+      #chat_rooms_list {
+        overflow-y: scroll;
+        position: fixed;
+        width: 263px;
+        height: 503px;
+        overflow-x: hidden;
+    }
+
+
+    #comments_section{
+        padding-bottom: 60px !important;
+        position: fixed;
+        right: 0;
+        width: 314px;
+        overflow-y: scroll;
+        height: 431px;
+    }
+    
+    .chating_body .col-lg-5 {
+    border-right: 1px solid #c9c9c9;
+    }
+    
+    .user_section img {
+    width: 45px;
+    }
+    
+    .seller_item_title {
+    font-size: 16px;
+    }
+    
+    .user_section {
+        margin: 4px -15px 0 -15px;
+        padding: 6px 13px 0px;
+    }
+    
+    .user_section:hover {
+    background: rgb(237 237 237);
+    }
+    
+    .user_section .fa-trash {
+    color: #db0505;
+    font-size: 17px;
+    }
+    
+    .chating_body {
+    font-size: 13px;
+    margin: 0;
+    }
+    
+    .comment_section {
+    margin-top: 10px;
+    }
+    
+    .customer_message {
+        text-align: right;
+        margin-bottom: 10px;
+        background: #def4ff;
+        padding: 10px;
+        float: right;
+        width: 90%;
+        border-radius: 35px 0px 0px 35px;
+        overflow-x: hidden;
+    }
+
+    .user_section:hover {
+        background: rgb(237 237 237);
+    }
+    .selected_chat {
+        background: #86b9ed !important;
+    }
+    .customer_message p {
+        margin-bottom: 3px;
+    }
+
+    .user_section {
+        margin: 4px -15px 0 -15px;
+        padding: 6px 13px 0px;
+    }
+    
+    .seenStatus {
+    color: #86b9ed;
+    font-weight: 700;
+    }
+    
+    .seller_message {
+    text-align: left;
+    margin-bottom: 10px;
+    background: #fff6ef;
+    padding: 10px;
+    width: 90%;
+    float: left;
+    border-radius: 0px 35px 35px 0px;
+    overflow-x: hidden;
+    }
+    
+    .seller_message p {
+    margin-bottom: 3px;
+    }
+    
+    .chating_wrapper {
+        display: none;
+        box-shadow: 4px 4px 4px 4px #b3b3b3;
+    }
+    
+    .paymentmethod img {
+    width: 100%;
+    }
+    
+    .comments_section {
+    position: relative;
+    }
+    
+    .message_input {
+    position: fixed;
+    width: 260px;
+    bottom: 0;
+    margin-left: 8px;
+    }
+    
+    #success_page h4 {
+    font-weight: 700;
+    }
+    
+    #success_page {
+    padding-top: 30px;
+    padding-bottom: 30px;
+    min-height: 65vh;
+    text-align: center;
+    padding: 40px 0;
+    background: #EBF0F5;
+    }
+    
+    #success_page h1 {
+    color: #2ca8e3;
+    font-family: "Nunito Sans", "Helvetica Neue", sans-serif;
+    font-weight: 900;
+    font-size: 40px;
+    margin-bottom: 10px;
+    }
+    
+    #success_page p {
+    color: #404F5E;
+    font-family: "Nunito Sans", "Helvetica Neue", sans-serif;
+    font-size: 20px;
+    margin: 0;
+    }
+    
+    #success_page i {
+    color: #2ca8e3;
+    font-size: 100px;
+    line-height: 200px;
+    margin-left: -15px;
+    }
+    
+    #success_page .crossmark {
+    color: #eb3c08;
+    font-size: 100px;
+    line-height: 200px;
+    margin-left: 0px;
+    font-weight: 600;
+    }
+    
+    #success_page .card {
+    background: white;
+    padding: 60px;
+    border-radius: 4px;
+    box-shadow: 0 2px 3px #C8D0D8;
+    display: inline-block;
+    margin: 0 auto;
+    width: 100%;
+    height: 65vh;
+}
+    

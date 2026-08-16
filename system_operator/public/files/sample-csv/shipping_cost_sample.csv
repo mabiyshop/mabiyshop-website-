@@ -1,0 +1,3 @@
+product_type,weight,weight_unit,inside_origin_standard,outside_origin_standard,inside_origin_express,outside_origin_express
+grocery,2,kg,100,150,150,200
+other,1,l,120,170,150,200

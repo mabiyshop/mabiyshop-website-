@@ -1,0 +1,146 @@
+.chatig_parent {
+    background: #fff;
+    position: relative;
+}
+
+.chating_wrapper {
+    cursor: pointer;
+    background: #fff;
+    color: #000;
+    font-size: 24px;
+    padding: 8px 15px 0px 15px;
+    border-radius: 4px 0px 0px 0px;
+}
+
+.chating_body {
+    overflow-y: auto;
+    padding-left: 8px;
+}
+
+.chating_title {
+    font-size: 16px;
+}
+
+.chating_icon .fa {
+    font-size: 16px;
+}
+
+.chating_seller_title {
+    font-size: 16px;
+}
+
+.chating_icon {
+    float: left;
+    padding-bottom: 15px;
+}
+
+.close_chating {
+    float: right;
+    padding-left: 15px;
+}
+
+.close_chating .fa-times {
+    font-size: 17px;
+}
+
+.chating_header {
+    border-bottom: 1px solid #c9c9c9;
+    padding-left: 12px;
+}
+
+.chating_header .col-lg-5 {
+    border-right: 1px solid #c9c9c9;
+}
+
+.chating_body .col-lg-5 {
+    border-right: 1px solid #c9c9c9;
+}
+
+.seller_section img {
+    width: 45px;
+}
+
+.seller_item_title {
+    font-size: 16px;
+}
+
+.seller_section {
+    padding-left: 15px;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.seller_section:hover {
+    background: rgb(237 237 237);
+}
+
+.seller_section .fa-trash {
+    color: #db0505;
+    font-size: 17px;
+}
+
+.chating_body {
+    font-size: 13px;
+    margin: 0;
+}
+
+.comment_section {
+    margin-top: 10px;
+}
+
+.customer_message {
+    text-align: right;
+    margin-bottom: 10px;
+    background: #def4ff;
+    padding: 10px;
+    float: right;
+    width: 90%;
+    border-radius: 35px 0px 0px 35px;
+}
+
+.customer_message p {
+    margin-bottom: 3px;
+}
+
+.seenStatus {
+    color: #86b9ed;
+    font-weight: 700;
+}
+
+.seller_message {
+    text-align: left;
+    margin-bottom: 10px;
+    background: #fff6ef;
+    padding: 10px;
+    width: 90%;
+    float: left;
+    border-radius: 0px 35px 35px 0px;
+}
+
+.seller_message p {
+    margin-bottom: 3px;
+}
+
+
+.paymentmethod img {
+    width: 100%;
+}
+
+.comments_section {
+    position: relative;
+}
+
+.message_input {
+    position: fixed;
+    width: 56vw;
+    bottom: 0;
+    margin-left: 8px;
+}
+
+#comments_section {
+    height: 88vh;
+    overflow: scroll;
+}
+.selected_chat{
+    background: #86b9ed !important;
+}

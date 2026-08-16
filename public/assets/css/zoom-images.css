@@ -1,0 +1,100 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box
+}
+
+.zoom-show {
+    width: 100%;
+    object-fit: contain;
+    height: 400px;
+}
+
+#show-img {
+    width: 400px;
+    height: 400px;
+}
+
+#big-img{
+    object-fit: cover;
+}
+
+.small-img {
+    width: 100%;
+    height: 70px;
+    margin-top: 10px;
+    position: relative;
+    left: 0px;
+    /* background: #dfe3e72b; */
+    margin-bottom: 25px;
+}
+
+.small-img .icon-left,
+.small-img .icon-right {
+    width: 12px;
+    height: 24px;
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    margin: auto 0;
+}
+
+.small-img .icon-left {
+    transform: rotate(180deg);
+    padding: 24px 10px;
+    width: 30px;
+    height: 100%;
+}
+
+.small-img .icon-right {
+    right: 0;
+    padding: 24px 10px;
+    width: 30px;
+    height: 100%;
+}
+
+.small-img .icon-left:hover,
+.small-img .icon-right:hover {
+    opacity: .5;
+}
+
+.small-container {
+    width: 310px;
+    height: 70px;
+    overflow: hidden;
+    position: absolute;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+}
+
+.small-container div {
+    width: 800%;
+    position: relative;
+}
+
+.small-container .show-small-img {
+    width: 70px;
+    height: 70px;
+    margin-right: 6px;
+    cursor: pointer;
+    float: left;
+}
+
+.small-container .show-small-img:last-of-type {
+    margin-right: 5px;
+}
+
+.quick_view .showImage{
+    width: 100% !important;
+    height: auto;
+    object-fit: contain !important;
+    max-height: unset !important;
+}
+
+.quick_view .zoom-show {
+    width: 100%  !important;
+    object-fit: contain  !important;
+    height: unset !important;
+}
