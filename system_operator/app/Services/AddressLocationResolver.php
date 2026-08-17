@@ -511,7 +511,7 @@ private function searchForms(string $value): array
             return $this->cachedLocationIndex;
         }
 
-        return $this->cachedLocationIndex = Cache::remember('address-location-resolver-index-v37', 86400, function () {
+        return $this->cachedLocationIndex = Cache::remember('address-location-resolver-index-v38', 86400, function () {
             $areas = DB::table('unions')->select('id', 'upazila_id', 'title', 'area_id')->get();
             $areasByPhrase = [];
             $areasByBanglaVariant = [];
@@ -644,6 +644,17 @@ private function searchForms(string $value): array
             'area' => ['area', 'এরিয়া', 'এলাকা'],
             'section' => ['section', 'সেকশন'],
         ];
+
+        if (preg_match('/^(sector|block|ward|road|area|section) ([0-9]+)$/u', $title, $parts)) {
+            $term = $parts[1];
+            $identifier = (string) ((int) $parts[2]);
+            $variants = [];
+            foreach ($terms[$term] as $termVariant) {
+                $variants[] = $termVariant . ' ' . $identifier;
+            }
+
+            return array_values(array_unique(array_map([$this, 'normalize'], $variants)));
+        }
 
         if (preg_match('/^(.+?) ([0-9]+)$/u', $title, $parts)) {
             $base = $parts[1];

@@ -154,7 +154,7 @@ Route::prefix('v1')->group(function () {
     Route::post('digital-add-to-cart', 'Api\ApiController@digitalAddToCart');
 	
 	//Order
-	Route::post('order', 'Api\ApiController@Order');
+	Route::post('order', 'Api\ApiController@Order')->middleware(\App\Http\Middleware\RejectBlockedCustomer::class);
 	Route::get('pay-again/{order_id}', 'Api\ApiController@payAgain');
 	Route::get('digital-payment-link/{order_id}', 'Api\ApiController@digitalPaymentLink');
 	Route::get('cancel-order/{order_id}', 'Api\ApiController@cancelOrder');

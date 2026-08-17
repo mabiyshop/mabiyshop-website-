@@ -134,7 +134,7 @@ class AddressLocationResolverRegressionTest extends TestCase
     public function test_stale_cache_cannot_promote_bare_structural_areas(): void
     {
         $this->resolver()->resolve('dhaka');
-        $index = Cache::get('address-location-resolver-index-v37');
+        $index = Cache::get('address-location-resolver-index-v38');
         $index['areas_by_phrase']['road'][] = (object) [
             'id' => 17,
             'upazila_id' => 82,
@@ -147,7 +147,7 @@ class AddressLocationResolverRegressionTest extends TestCase
             'title' => 'Section',
             'area_id' => 16368,
         ];
-        Cache::put('address-location-resolver-index-v37', $index, 86400);
+        Cache::put('address-location-resolver-index-v38', $index, 86400);
 
         foreach (['road dhaka' => 'Road', 'section dhaka' => 'Section'] as $address => $bareTitle) {
             $result = $this->resolver()->resolve($address);

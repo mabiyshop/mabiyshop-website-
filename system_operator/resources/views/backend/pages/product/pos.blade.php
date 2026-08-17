@@ -31,19 +31,59 @@
                     <input type="text" placeholder="Search Product..." name="serach_product_field" id="serach_product_field">
                 </div> 
             </div>
-            <div class="col-md-3">
-                <div class="product_search">
-					<input type="search" class="form-control mb-1" id="customer_search" placeholder="Search customer by name or phone">
-                    <div class="input-group">
-                        <select class="form-control selectpicker" data-live-search="true"  name="select_user" id="select_user" aria-describedby="button-addon2">
-                            
-                            
-                        </select>
-                        <button class="btn btn-outline-secondary" type="button" data-toggle="modal" data-target="#customerAddModal" title="Add Customer"><i class="mdi mdi-plus"></i></button>
-                    </div>
-                    
-                </div>
+<div class="col-md-3">
+    <div class="product_search" style="position: relative;">
+
+        <div class="input-group">
+            <input
+                type="search"
+                class="form-control"
+                id="customer_search"
+                placeholder="Search customer by name or phone"
+                autocomplete="off"
+            >
+
+            <div class="input-group-append">
+                <button
+                    class="btn btn-outline-secondary"
+                    type="button"
+                    data-toggle="modal"
+                    data-target="#customerAddModal"
+                    title="Add Customer"
+                >
+                    <i class="mdi mdi-plus"></i>
+                </button>
             </div>
+        </div>
+
+        <div
+            id="customer_search_results"
+            style="
+                display:none;
+                position:absolute;
+                top:100%;
+                left:0;
+                right:0;
+                background:#fff;
+                border:1px solid #ddd;
+                max-height:320px;
+                overflow-y:auto;
+                z-index:9999;
+            ">
+        </div>
+
+        <div style="display:none;">
+            <select
+                class="form-control selectpicker"
+                name="select_user"
+                id="select_user"
+            >
+                <option value="-1">-- Select Customer --</option>
+            </select>
+        </div>
+
+    </div>
+</div>
             {{-- <div class="col-md-1 m-0"> 
                 <button style="border-radius: 7px;" class="btn-dark" data-toggle="modal" data-target="#customerAddModal" title="Add Customer"><i style="font-size: 26px;" class="mdi mdi-account-plus"></i></button>
             </div> --}}
@@ -264,39 +304,135 @@
 @push('footer')
 {{-- <script src="{{ asset('backend/assets/js/pos.js')}}"></script> --}}
 <script type="text/javascript">
+    let customerListRequest = null;
+    let customerListRequestSequence = 0;
     function getCustomerList(search = '') {
-        let user =  localStorage.getItem("current_user_id");
-        jQuery.ajax({
+        const requestSequence = ++customerListRequestSequence;
+        let user = localStorage.getItem("current_user_id");
+        if (customerListRequest) {
+            customerListRequest.abort();
+        }
+        customerListRequest = jQuery.ajax({
             type: "GET",
             url: "{{ route('admin.pos.get.customers') }}",
 			data: {current_user: user, search: search},
             dataType: 'html',
             success: function (response) {
-                jQuery('#select_user').html('<option value="-1">-- Select Customer --</option>' + response);
-                jQuery("#select_user").selectpicker('refresh');
-				if (!search) {
-					updateUIWithUser(localStorage.getItem("current_user_id"));
-				}
+                if (requestSequence !== customerListRequestSequence) return;
+
+                let results = jQuery('#customer_search_results');
+                results.empty();
+
+                if (search === '') {
+                    results.hide();
+                } else {
+                    let tempSelect = jQuery('<select>' + response + '</select>');
+                    let options = tempSelect.find('option');
+
+                    if (!options.length) {
+                        results
+                            .html('<div style="padding:10px;">No customer found</div>')
+                            .show();
+                    } else {
+                        options.each(function () {
+                            let customerId = jQuery(this).val();
+                            let customerText = jQuery(this).text();
+
+                            let item = jQuery('<div></div>')
+                                .addClass('customer-search-result')
+                                .attr('data-id', customerId)
+                                .text(customerText)
+                                .css({
+                                    padding: '9px 12px',
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid #eee'
+                                });
+
+                            results.append(item);
+                        });
+
+                        results.show();
+                    }
+                }
+
+                const currentUserId = localStorage.getItem("current_user_id");
+                const hasCurrentUser = currentUserId && currentUserId !== '-1' && currentUserId !== 'undefined';
+                const selectUser = jQuery('#select_user');
+                const selectedBeforeRefresh = selectUser.val();
+                const responseOptions = jQuery('<select>').html('<option value="-1">-- Select Customer --</option>' + response);
+
+                if (hasCurrentUser && !responseOptions.find('option').filter(function () {
+                    return String(this.value) === String(currentUserId);
+                }).length) {
+                    const currentOption = selectUser.find('option').filter(function () {
+                        return String(this.value) === String(currentUserId);
+                    }).first();
+
+                    if (currentOption.length) {
+                        responseOptions.append(currentOption.clone());
+                    } else {
+                        return;
+                    }
+                }
+
+                selectUser.html(responseOptions.html());
+                selectUser.selectpicker('refresh');
+
+                if (hasCurrentUser) {
+                    selectUser.selectpicker('val', String(currentUserId));
+                    if (String(selectedBeforeRefresh) !== String(currentUserId)) {
+                        selectUser.trigger('change');
+                    }
+                }
             },
             error: function (xhr, textStatus, errorThrown) {
+                if (textStatus === 'abort' || requestSequence !== customerListRequestSequence) return;
                 // Handle error if needed
                 console.error("Error fetching customer list:", errorThrown);
+            },
+            complete: function () {
+                if (requestSequence === customerListRequestSequence) {
+                    customerListRequest = null;
+                }
             }
         });
+        return customerListRequest;
     }
     // Call getCustomerList initially
     getCustomerList();
-	let customerSearchTimer = null;
-	jQuery(document).on('input', '#customer_search', function () {
-		clearTimeout(customerSearchTimer);
-		const search = this.value.trim();
-		customerSearchTimer = setTimeout(function () {
-			getCustomerList(search);
-		}, 300);
-	});
+
+    let customerSearchTimer = null;
+    jQuery(document).on('input', '#customer_search', function () {
+        clearTimeout(customerSearchTimer);
+
+        const search = this.value.trim();
+
+        if (search === '') {
+            jQuery('#customer_search_results').hide().empty();
+        }
+
+        customerSearchTimer = setTimeout(function () {
+            getCustomerList(search);
+        }, 300);
+    });
+
+    jQuery(document).on('click', '.customer-search-result', function () {
+        let customerId = jQuery(this).attr('data-id');
+        let customerText = jQuery(this).text();
+
+        jQuery('#select_user')
+            .val(customerId)
+            .trigger('change');
+
+        jQuery('#customer_search').val(customerText);
+
+        jQuery('#customer_search_results')
+            .hide()
+            .empty();
+    });
 
     function updateUIWithUser(userId) {
-        $('#select_user').val(userId).trigger('change');
+        $('#select_user').selectpicker('val', String(userId)).trigger('change');
     }
 
     // updateUIWithUser(localStorage.getItem("current_user_id"));
@@ -338,8 +474,19 @@
                 $('#customerShippingAddressAddModal input[name="email"]').val(localStorage.getItem("new_customer_email"));
                 $('#customerShippingAddressAddModal input[name="phone"]').val(localStorage.getItem("new_customer_phone"));
 
-                // updateUIWithUser(current_user_id);
-                getCustomerList();
+                getCustomerList().done(function () {
+                    const selectUser = jQuery('#select_user');
+                    const newCustomerOption = selectUser.find('option').filter(function () {
+                        return String(this.value) === String(current_user_id);
+                    }).first();
+
+                    if (!newCustomerOption.length) return;
+
+                    if (String(selectUser.val()) !== String(current_user_id)) {
+                        updateUIWithUser(current_user_id);
+                    }
+                    jQuery("#customer_search").val(name + (phone ? " - " + phone : ""));
+                });
             },
             error: function (xhr) {
                 let errorMessage = '';
@@ -1297,6 +1444,21 @@
                                 updatePosAddressWarning(address, null);
                             });
                             return;
+                        }
+                        if (response.match_type === 'ambiguous') {
+                            const districtIds = [...new Set(candidates
+                                .map(function (candidate) { return candidate.district_id; })
+                                .filter(function (districtId) { return districtId !== null && districtId !== undefined && String(districtId) !== ''; })
+                                .map(String))];
+                            if (districtIds.length === 1) {
+                                const districtId = districtIds[0];
+                                jQuery.when(loadPosDistricts(districtId), loadPosUpazilas(districtId, null)).then(function () {
+                                    if (requestId !== posAddressResolverSequence) return;
+                                    jQuery('#pos-address-resolver-status').removeAttr('style').attr('class', 'form-text text-warning').text('Please confirm the correct District and Thana / Area.');
+                                    updatePosAddressWarning(address, null);
+                                });
+                                return;
+                            }
                         }
                         showPosLocationFallback(response.match_type === 'ambiguous'
                             ? 'Please confirm the correct District and Thana / Area.'
