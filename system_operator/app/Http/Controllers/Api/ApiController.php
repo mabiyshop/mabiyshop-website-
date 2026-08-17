@@ -2052,13 +2052,34 @@ class ApiController extends Controller
 			}
 
 			if($request->get('otp_login') && $request->get('otp_login') == 1){
-				$user = User::where('phone', $request->get('phone'))->first();
+				$otp_code = $request->get('password');
+				$identifier = $request->get('phone');
+
+				if (!$otp_code || !$identifier || $this->verifyOTP($identifier, $otp_code) != 1) {
+					$data['message'] = 'Your email/phone or password does not match.';
+					$data['status'] = 2;
+					return response()->json($data, 200);
+				}
+
+				if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+					$user = User::where('email', $identifier)->first();
+				} else {
+					$user = User::where('phone', $identifier)->first();
+				}
+
+				if (!$user) {
+					$data['message'] = 'Your email/phone or password does not match.';
+					$data['status'] = 2;
+					return response()->json($data, 200);
+				}
 
 				if (!$token = auth('customer-api')->login($user)) {
 					$data['message'] = 'Your email/phone or password does not match.';
 					$data['status'] = 2;
 					return response()->json($data, 200);
 				}
+
+				DB::table('otp')->where('otp_code', $otp_code)->update(['status' => 1]);
 			}else{
 				if (!$token = auth('customer-api')->attempt($credentials)) {
 					$data['message'] = 'Your email/phone or password does not match.';
@@ -2201,7 +2222,7 @@ class ApiController extends Controller
 				'name' => $request->mobile_number,
 				'phone' => $request->mobile_number,
 				'email' => $email ?? null,
-				'password' => bcrypt($request->otp),
+				'password' => bcrypt(Str::random(40)),
 				'affiliate_referer' => $request->affiliate_referer ?? null,
 				'status' => 1,
 			]);
@@ -6852,7 +6873,9 @@ class ApiController extends Controller
 
 		if (!$this->isOtpLimitExcceds($mobileNumber)) {
 
-			$otp = mt_rand(100000, 999999);
+			DB::table('otp')->where('mobile_number', $mobileNumber)->where('status', 0)->update(['status' => 2]);
+
+			$otp = random_int(1000, 9999);
 			$msg = 'আপনার OTP CODE:' . $otp . ' কোডটি ৫ মিনিট পর অকার্যকর হয়ে যাবে';
 
 			\Helper::sendSmsNonMusking($mobileNumber, $msg);
@@ -6907,7 +6930,9 @@ class ApiController extends Controller
 		
 		if (!$this->isOtpLimitExcceds($mobileNumber)) {
 
-			$otp = mt_rand(100000, 999999);
+			DB::table('otp')->where('mobile_number', $mobileNumber)->where('status', 0)->update(['status' => 2]);
+
+			$otp = random_int(1000, 9999);
 			$msg = 'আপনার OTP CODE: ' . $otp . ' কোডটি ৫ মিনিট পর অকার্যকর হয়ে যাবে';
 
 			if(filter_var($mobileNumber, FILTER_VALIDATE_EMAIL)) {
@@ -7056,6 +7081,14 @@ class ApiController extends Controller
 	public function verifyOTP($mobileNumber, $otp_code)
 	{
 		$res = 0;
+
+		$cacheKey = 'otp_verify_attempts:' . md5($mobileNumber);
+		$attempts = Cache::get($cacheKey, 0);
+
+		if ($attempts >= 5) {
+			return 0;
+		}
+
 		$otpData = DB::table('otp')->where('mobile_number', $mobileNumber)->where('otp_code', $otp_code)->orderby('id', 'desc')->where('status', 0)->first();
 		if ($otpData) {
 			$otptime = $otpData->created_at;
@@ -7069,6 +7102,13 @@ class ApiController extends Controller
 				$res = 2;
 			}
 		}
+
+		if ($res == 1) {
+			Cache::forget($cacheKey);
+		} else {
+			Cache::put($cacheKey, $attempts + 1, 5);
+		}
+
 		return $res;
 	}
 
