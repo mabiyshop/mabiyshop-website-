@@ -1,0 +1,5 @@
+product_type,weight,weight_unit,inside_origin_standard,outside_origin_standard,inside_origin_express,outside_origin_express
+grocery,0,kg,0,0,0,0
+grocery,1,kg,50,150,150,200
+other,0,gm,0,0,0,0
+other,1000,gm,40,60,80,120

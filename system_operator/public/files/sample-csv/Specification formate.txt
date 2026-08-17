@@ -1,0 +1,1 @@
+Specification-Color:red, Material:something, Number of Pieces: 2 
