@@ -28,10 +28,12 @@ use Image;
 use DB;
 use Auth;
 use Response;
+use App\Jobs\SendMetaPurchaseEvent;
 use File;
 use Helper;
 use Artisan;
 use Illuminate\Support\Str;
+use Throwable;
 use App\Jobs\ProductFeedGenerate;
 
 class ProductsController extends Controller
@@ -1673,6 +1675,13 @@ class ProductsController extends Controller
                     ]);
                 } else {
                     Order::where('payment_id', $transaction_id)->update(['status' => $status_id]);
+                }
+
+                if ((int) $order->status === 1 && (int) $status_id === 2) {
+                    try {
+                        SendMetaPurchaseEvent::dispatchSync((int) $order->id);
+                    } catch (Throwable $exception) {
+                    }
                 }
 
 
