@@ -112,13 +112,96 @@
                   </div>
                 </div>
               </div>
-      </div>
+          </div>
 
-      <div class="row">
-              <div class="col-12 grid-margin">
-                <div class="card">
-                  <div class="card-body">
-                    <p class="content_title">Address</p>
+          <div class="row">
+                <div class="col-12 grid-margin">
+                  <div class="card">
+                    <div class="card-body">
+                      <p class="content_title">Manual Block Status</p>
+                      <form class="form-sample" method="post" action="{{ route('admin.user.block.status.update', $user->id) }}" >
+                        @csrf
+                        <div class="row">
+                          <div class="col-md-6">
+                            <div class="form-group row">
+                              <label class="col-sm-4 col-form-label">Current Status</label>
+                              <div class="col-sm-8">
+                                <p class="form-control-static" id="current_block_status">Loading...</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-md-6">
+                            <div class="form-group row">
+                              <label class="col-sm-4 col-form-label">Set Status <span style="color: #f00">*</span></label>
+                              <div class="col-sm-8">
+                                <select class="form-control" name="status" required>
+                                  <option value="NORMAL">NORMAL</option>
+                                  <option value="WATCH">WATCH</option>
+                                  <option value="BLOCKED">BLOCKED</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-md-6">
+                            <div class="form-group row">
+                              <label class="col-sm-4 col-form-label">Reason</label>
+                              <div class="col-sm-8">
+                                <input type="text" name="reason" class="form-control" placeholder="Optional reason">
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-md-6">
+                            <div class="form-group row">
+                              <label class="col-sm-4 col-form-label">Expires At</label>
+                              <div class="col-sm-8">
+                                <input type="datetime-local" name="expires_at" class="form-control">
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="row">
+                          <div class="col-md-12">
+                            <div class="form-group">
+                              <p class="text-right">
+                                <button type="submit" class="btn btn-primary submit-btn">Update Block Status</button>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </form>
+
+                      <div class="row mt-3">
+                        <div class="col-md-12">
+                          <p class="content_title">Block History</p>
+                          <div class="designed_table table-responsive">
+                            <table id="blockHistoryTable" class="table">
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Status</th>
+                                  <th>Reason</th>
+                                  <th>Blocked By</th>
+                                  <th>Expires At</th>
+                                  <th>Created At</th>
+                                </tr>
+                              </thead>
+                              <tbody id="blockHistoryBody">
+                                <tr><td colspan="6">Loading...</td></tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+      <!--Save Modal -->
                     <div class="row">
                       <div class="designed_table table-responsive">
                         <table id="listTable" class="table">
@@ -390,3 +473,4 @@
     </script>
   @endpush
 @endsection
+

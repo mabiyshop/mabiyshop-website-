@@ -493,6 +493,9 @@ Route::group(['prefix' => 'admin', 'middleware' => 'auth'], function () {
         Route::get('/accounts/orders/{id}', 'Backend\AccountsController@user_accountsOrders')->name('admin.user.accounts.orders');
 
         Route::post('/bulk/action', 'Backend\AccountsController@user_action')->name('admin.user.bulk.action');
+
+        Route::post('/block-status/{customerId}', 'Backend\CustomerBlockController@updateBlockStatus')->name('admin.user.block.status.update');
+        Route::get('/block-history/{customerId}', 'Backend\CustomerBlockController@getBlockHistory')->name('admin.user.block.history');
     });
 
 
