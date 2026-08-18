@@ -1587,8 +1587,24 @@
 						let user_id = localStorage.getItem("userID");
 						let categoryId = response.data.category_id;
 						this.calculated_price = response.data.price_after_offer;
-						this.loading = true;
-						//Check compare
+					this.loading = true;
+
+					window.dataLayer = window.dataLayer || [];
+					window.dataLayer.push({
+						event: 'view_item',
+						ecommerce: {
+							currency: 'BDT',
+							value: parseFloat(response.data.price_after_offer || response.data.price || 0),
+							items: [{
+								id: String(response.data.id),
+								name: response.data.title || '',
+								price: parseFloat(response.data.price_after_offer || response.data.price || 0),
+								category: response.data.category_title || '',
+							}],
+						},
+					});
+
+					//Check compare
 						axios.post(this.$baseUrl+'/api/v1/check-compare', {product_id:productId}, axiosConfig).then(response => {
 							this.checkCompare = response.data;
 						});

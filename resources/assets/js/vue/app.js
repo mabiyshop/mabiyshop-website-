@@ -46,3 +46,12 @@ export default new Vue({
     router,
     render: h => h(App),
 });
+
+router.afterEach((to) => {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+        event: 'PageView',
+        page_path: to.path,
+        page_title: document.title || '',
+    });
+});

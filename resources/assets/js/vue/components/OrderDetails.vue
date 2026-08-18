@@ -796,43 +796,6 @@ export default {
                         this.barcode = response.data
                 });
 
-                dataLayer.push({ ecommerce: null });  // Clear the previous ecommerce object.
-                const products = response.data.products || [];  // Make sure response.data.products is an array
-                var transformedProducts =[];
-                
-                $.each(products, function (index, value) {
-                   
-                    let array = {
-                                'name': value.product.title,
-                                'id': value.product_id,
-                                'price': value.price,
-                                'brand': value.product.brand_title,
-                                'category': value.product.category_title,
-                                'variant': value.product_options.Weight,
-                                'quantity': value.product_qty,
-                                'coupon': ''
-                            };
-                    transformedProducts.push(array);
-                    
-                });
-
-                dataLayer.push({
-                    event: "purchase",
-						ecommerce: {
-                        'purchase': {
-                        'actionField': {
-                            'id': '',                         // Transaction ID. Required for purchases and refunds.
-                            'affiliation': '',
-                            'revenue': response.data.order.total_amount,                     // Total transaction value (incl. tax and shipping)
-                            'tax': response.data.order.vat,
-                            'shipping': response.data.order.shipping_cost,
-                            'coupon': response.data.order.coupon_code
-                        },
-                        'products': transformedProducts
-                        }
-                    }
-                });
-                
                 this.single_order = response.data.order;
                 this.address = response.data.shipping_address;
                 this.order_products = response.data.products;
