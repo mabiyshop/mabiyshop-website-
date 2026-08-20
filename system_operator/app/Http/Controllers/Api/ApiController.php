@@ -55,6 +55,7 @@ use App\Models\SingleProductOffer;
 use App\Models\ProductMeta;
 use App\Models\Division;
 use App\Services\AddressLocationResolver;
+use App\Services\CheckoutOtpService;
 use App\Support\BangladeshMobile;
 use Illuminate\Support\Facades\Cache;
 
@@ -4496,12 +4497,125 @@ class ApiController extends Controller
 
 
 	//Order
+	public function checkoutPhoneCheck(Request $request)
+	{
+		$phone = (string) $request->input('phone', '');
+		if ($phone === '') {
+			return response()->json([
+				'status' => 0,
+				'otp_required' => true,
+				'otp_bypass_reason' => 'invalid_phone',
+				'customer_exists' => false,
+			], 200);
+		}
+
+		$result = app(CheckoutOtpService::class)->phoneCheck($phone);
+		return response()->json($result, 200);
+	}
+
+	public function sendCheckoutOtp(Request $request)
+	{
+		$phone = (string) $request->input('phone', '');
+		if ($phone === '') {
+			return response()->json(['status' => 0, 'message' => 'Phone number is required.'], 200);
+		}
+
+		$result = app(CheckoutOtpService::class)->sendCheckoutOtp($phone);
+		return response()->json($result, 200);
+	}
+
+	public function verifyCheckoutOtp(Request $request)
+	{
+		$phone = (string) $request->input('phone', '');
+		$otp = (string) $request->input('otp', '');
+
+		if ($phone === '' || $otp === '') {
+			return response()->json(['status' => 0, 'message' => 'Phone and OTP are required.'], 200);
+		}
+
+		$result = app(CheckoutOtpService::class)->verifyCheckoutOtp($phone, $otp);
+		return response()->json($result, 200);
+	}
+
+	//Order
 	public function Order(Request $request){
 		$user = auth('customer-api')->user();
-		if (!$user) {
+		$isGuestOrder = !$user && ($request->guest_shipping_first_name || $request->guest_shipping_phone);
+
+		if ($isGuestOrder) {
+			$session_key = $request->session_key;
+			if (!$session_key) {
+				$data['status'] = 0;
+				$data['message'] = 'Session expired. Please try again.';
+				return response()->json($data, 200);
+			}
+		}
+
+		if (!$user && !$isGuestOrder) {
 			$data['status'] = 0;
 			$data['message'] = 'Please login first.';
 			return response()->json($data, 200);
+		}
+
+		$checkoutPhone = (string) ($request->shipping_phone ?? '');
+		if ($checkoutPhone === '') {
+			$userAddress = Addresses::where('id', $user->default_address_id)
+				->where('is_deleted', 0)
+				->when($user->id, function ($q) use ($user) {
+					$q->where('user_id', $user->id);
+				})
+				->first();
+			$checkoutPhone = (string) ($userAddress->shipping_phone ?? '');
+		}
+
+		if ($checkoutPhone === '') {
+			$data['status'] = 0;
+			$data['message'] = 'Shipping phone is required.';
+			return response()->json($data, 200);
+		}
+
+		$checkoutOtpService = app(CheckoutOtpService::class);
+		$phoneCheck = $checkoutOtpService->phoneCheck($checkoutPhone);
+
+		if ($phoneCheck['otp_bypass_reason'] === 'blocked_customer') {
+			return response()->json([
+				'status' => 0,
+				'message' => 'This account is temporarily blocked. Please contact support.',
+			], 200);
+		}
+
+		if ($phoneCheck['otp_required'] && !$checkoutOtpService->isCheckoutOtpVerified($checkoutPhone)) {
+			return response()->json([
+				'status' => 0,
+				'otp_required' => true,
+				'message' => 'checkout_otp_required',
+				'otp_bypass_reason' => $phoneCheck['otp_bypass_reason'] ?? 'otp_required',
+			], 200);
+		}
+
+		if ($isGuestOrder) {
+			$guestAddressId = DB::table('addresses')->insertGetId([
+				'user_id' => null,
+				'shipping_first_name' => $request->guest_shipping_first_name,
+				'shipping_last_name' => null,
+				'shipping_phone' => $request->guest_shipping_phone,
+				'shipping_email' => null,
+				'shipping_address' => $request->guest_shipping_address,
+				'shipping_postcode' => null,
+				'shipping_division' => null,
+				'shipping_district' => (int) $request->guest_shipping_district,
+				'shipping_thana' => (int) $request->guest_shipping_thana,
+				'shipping_union' => $request->guest_shipping_union ? (int) $request->guest_shipping_union : null,
+				'is_deleted' => 0,
+				'created_at' => now(),
+				'updated_at' => now(),
+			]);
+
+			$user = (object) [
+				'id' => null,
+				'default_address_id' => $guestAddressId,
+				'default_pickpoint_address' => 0,
+			];
 		}
 
 		$pickpoint =  Pickpoints::where('id', $user->default_address_id)->first();
@@ -4517,8 +4631,10 @@ class ApiController extends Controller
 		if ($user) {
 			$validForGroceryShipping = false;
 			$userAddress = Addresses::where('id', $user->default_address_id)
-				->where('user_id', $user->id)
 				->where('is_deleted', 0)
+				->when($user->id, function ($q) use ($user) {
+					$q->where('user_id', $user->id);
+				})
 				->first();
 			$default_shipping_inside_location = \Helper::getSettings('default_shipping_inside_location');
 			$default_shipping_inside_location_ids = explode(',', $default_shipping_inside_location);
@@ -4578,7 +4694,12 @@ class ApiController extends Controller
 			}
 
 			$user_id = $user->id;
-			$cartData = DB::table('carts')->where('user_id', $user_id)->get();
+			if ($user_id) {
+				$cartData = DB::table('carts')->where('user_id', $user_id)->get();
+			} else {
+				$session_key = $request->session_key;
+				$cartData = DB::table('carts')->where('session_key', $session_key)->get();
+			}
 			if ($cartData->isEmpty()) {
 				$data['status'] = 0;
 				$data['message'] = 'Product not found in your cart.';
@@ -4610,11 +4731,18 @@ class ApiController extends Controller
 						&& $cart->product_type != 'service'
 						&& $sProduct->is_grocery != 'grocery'
 					) {
-						$availableShippingOptions = \Helper::get_shipping_cost(
-							$user->id,
-							$cart->seller_id,
-							$cart->product_id
-						);
+						$availableShippingOptions = $user->id
+							? \Helper::get_shipping_cost(
+								$user->id,
+								$cart->seller_id,
+								$cart->product_id
+							)
+							: \Helper::get_shipping_cost(
+								null,
+								$cart->seller_id,
+								$cart->product_id,
+								$userAddress->shipping_district ?? null
+							);
 						$shipping_cost += $cart->qty * ($availableShippingOptions['standard_shipping'] ?? 0);
 					}
 
@@ -4999,11 +5127,16 @@ class ApiController extends Controller
 				DB::table('affiliate_history')->insert($affData);
 			}
 
-			//Delete Cart Data as part of the authoritative order transaction.
+		//Delete Cart Data as part of the authoritative order transaction.
+		if ($user_id) {
 			$deletedCartRows = DB::table('carts')->where('user_id', $user_id)->delete();
-			if ($deletedCartRows !== $cartData->count()) {
-				throw new \RuntimeException('Unable to clear the complete customer cart.');
-			}
+		} else {
+			$session_key = $request->session_key;
+			$deletedCartRows = DB::table('carts')->where('session_key', $session_key)->delete();
+		}
+		if ($deletedCartRows !== $cartData->count()) {
+			throw new \RuntimeException('Unable to clear the complete customer cart.');
+		}
 			DB::commit();
 			} catch (\Throwable $exception) {
 				DB::rollBack();
@@ -5076,8 +5209,10 @@ class ApiController extends Controller
 				\Helper::sendSmsNonMusking($seller->phone, 'একটি নতুন অর্ডার সফলভাবে স্থাপন করা হয়েছে! Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
 			}
 
-			// Customer
+		// Customer
+		if ($user->phone) {
 			\Helper::sendSmsNonMusking($user->phone, 'আপনার অর্ডার সফলভাবে স্থাপন করা হয়েছে! আপনার Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+		}
 
 			if ($request->payment_method == 'online_payment') {
 

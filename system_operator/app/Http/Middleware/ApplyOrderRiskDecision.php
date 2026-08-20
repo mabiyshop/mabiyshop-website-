@@ -29,11 +29,7 @@ class ApplyOrderRiskDecision
         $user = auth('customer-api')->user();
 
         if ($user === null) {
-            return response()->json([
-                'status' => 0,
-                'error' => 'unauthenticated',
-                'message' => 'Authentication required.',
-            ], 401);
+            return $next($request);
         }
 
         try {

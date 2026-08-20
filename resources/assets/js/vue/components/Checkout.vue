@@ -1,7 +1,37 @@
 <template>
     <div>
-    <div v-if="loading" p-0>
-        <section v-if="cartData.sub_total > 0" id="cart-page">
+        <section v-if="checkoutStep === 'phone'" id="cart-page">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-12 col-sm-10 col-md-6 col-lg-5">
+                    <div class="text-center mb-4">
+                        <h4>{{ $t('Checkout') }}</h4>
+                        <p class="mb-0">{{ $t('Mobile Number') }}</p>
+                    </div>
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="form-group mb-3">
+                                <label class="small text-muted">{{ $t('Mobile Number') }}</label>
+                                <div class="d-flex">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text" style="width:72px;text-align:center;">+88</span>
+                                    </div>
+                                    <input type="text" class="form-control mobile_number_login_page" v-model="checkoutPhone" placeholder="01XXXXXXXXX" maxlength="11" @input="normalizePhoneDigits">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary site_color1 btn-block" @click.prevent="submitInitialPhone" :disabled="phoneLoading || !isValidBangladeshPhone">
+                                <span v-if="phoneLoading" class="spinner-border spinner-border-sm"></span>
+                                <span v-else>{{ $t('Next') }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </section>
+
+        <template v-if="checkoutStep === 'address'">
+        <section v-if="checkoutStep === 'address' && cartData.sub_total > 0" id="cart-page">
         <div class="container">
             <div class="row cart-page-container">
                 <div class="col-12 col-sm-12 col-md-8 col-lg-8 pr-0">
@@ -83,18 +113,37 @@
                             <li v-if="address.shipping_email"> <b><i class="fa fa-envelope-o" aria-hidden="true"></i></b> <span>{{address.shipping_email}}</span> </li>
                         </ul>    
                     </div>
-                    <div v-else  class="address_details_alt"> 
-                        
-                        <div class="row p-0">
-                            <div class="col-lg-1 pr-0"><b><i class="fa fa-map-marker" aria-hidden="true"></i></b></div>
-                            
-                            <div v-if="logged_in_user.default_address_id == null" class="col-lg-10 p-0"> <p class="required_addtess" data-required-address="true">{{ $t('You need to select your default shipping address') }}.</p> </div>
-                            <div v-else class="col-lg-10 p-0"> <p class="required_addtess" data-required-address="true">{{ $t('You need to add your shipping address') }}.</p> </div>
-    
-                            <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
-                        </div>
-                                
-                    </div>
+                     <div v-else-if="logged_in_user.id"  class="address_details_alt"> 
+                         
+                         <div class="row p-0">
+                             <div class="col-lg-1 pr-0"><b><i class="fa fa-map-marker" aria-hidden="true"></i></b></div>
+                             
+                             <div v-if="logged_in_user.default_address_id == null" class="col-lg-10 p-0"> <p class="required_addtess" data-required-address="true">{{ $t('You need to select your default shipping address') }}.</p> </div>
+                             <div v-else class="col-lg-10 p-0"> <p class="required_addtess" data-required-address="true">{{ $t('You need to add your shipping address') }}.</p> </div>
+     
+                             <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
+                         </div>
+                                 
+                     </div>
+                     <div v-else-if="guestAddressSaved" class="address_details">
+                         <ul>
+                             <li>
+                                 <div class="row p-0">
+                                     <div class="col-lg-1 pr-0"><b><i class="fa fa-map-marker" aria-hidden="true"></i></b></div>
+                                     <div class="col-lg-10 p-0"> <span>{{ guestAddressDisplay }}</span> </div>
+                                     <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
+                                 </div>
+                             </li>
+                             <li> <b><i class="fa fa-phone" aria-hidden="true"></i></b> <span>{{ guestShippingPhone }}</span></li>
+                         </ul>
+                     </div>
+                     <div v-else>
+                         <div class="row p-0">
+                             <div class="col-lg-1 pr-0"><b><i class="fa fa-map-marker" aria-hidden="true"></i></b></div>
+                             <div class="col-lg-10 p-0"> <p class="required_addtess" data-required-address="true">{{ $t('You need to add your shipping address') }}.</p> </div>
+                             <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
+                         </div>
+                     </div>
     
                     <div class="note">
                          <textarea type="text" v-model="note" class="form-control form_note" rows="3" :placeholder="$t('Write a note here')+'..'"></textarea>
@@ -451,12 +500,9 @@
             </div>
         </div>
     </section>
-    </div>
-    
-    
-    
-    
-    
+    </template>
+
+
         <div class="modal fade" id="addressModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
             <div class="modal-content">
@@ -471,13 +517,17 @@
                 </div>
                 <div class="d-flex flex-column text-center">
     
-                    <ul class="nav nav-tabs">
-                        <li class="btn btn-dark active"><a data-toggle="tab" href="#home">{{ $t('Address book') }}</a></li>
-                        <li class="btn btn-dark"><a data-toggle="tab" href="#menu1"> <i class="fa fa-plus"></i> {{ $t('Add new address') }}</a></li>
+                    <ul class="nav nav-tabs" v-if="logged_in_user && logged_in_user.id">
+                        <li class="nav-item" :class="{active: addressModalTab === 'book'}">
+                            <a class="nav-link" data-toggle="tab" href="#home" @click.prevent="addressModalTab = 'book'">{{ $t('Address book') }}</a>
+                        </li>
+                        <li class="nav-item" :class="{active: addressModalTab === 'new'}">
+                            <a class="nav-link" data-toggle="tab" href="#menu1" @click.prevent="addressModalTab = 'new'"> <i class="fa fa-plus"></i> {{ $t('Add new address') }}</a>
+                        </li>
                     </ul>
     
                     <div class="tab-content">
-                        <div id="home" class="tab-pane fade in active">
+                        <div id="home" class="tab-pane fade" :class="{in: true, active: addressModalTab === 'book'}">
                                 <table class="table table-hover">
                                 <thead>
                                     <tr>
@@ -503,7 +553,7 @@
                                 </tbody>
                                 </table>
                         </div>
-                        <div id="menu1" class="tab-pane fade">
+                        <div id="menu1" class="tab-pane fade" :class="{in: true, active: addressModalTab === 'new'}">
                             <div class="col-md-12">
                                     <form @submit.prevent="addNewAddress()">
                                     <div class="options">
@@ -599,6 +649,17 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        <div class="row text-left" v-if="unions.length">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="checkout_shipping_union">{{ $t('Area / Union') }}</label>
+                                                    <select id="checkout_shipping_union" v-model="resolvedShippingUnion" class="form-control">
+                                                        <option :value="null" disabled>--Select Area / Union--</option>
+                                                        <option v-for="unionItem in unions" :key="unionItem.id" :value="unionItem.id">{{ unionItem.title }}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <p class="text-right"> <button type="submit" class="btn btn-dark"> {{ $t('Add new address') }}</button> </p>
                                     </div>
                                     </form>
@@ -614,6 +675,30 @@
         </div>
     
     
+    <div class="modal fade" id="checkoutOtpModal" tabindex="-1" role="dialog" aria-labelledby="checkoutOtpModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+            <div class="modal-header border-bottom-0">
+                <h5 class="modal-title" id="checkoutOtpModalLabel">Verify OTP</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p v-if="checkoutPhone">We sent a 4-digit OTP to <b>{{ checkoutPhone }}</b></p>
+                <div class="form-group">
+                    <input type="text" class="form-control" v-model="checkoutOtpCode" placeholder="Enter 4-digit OTP" maxlength="4" @input="checkoutOtpCode = checkoutOtpCode.replace(/\D/g, '').slice(0, 4)">
+                </div>
+                <button type="button" class="btn btn-primary site_color1" @click.prevent="verifyCheckoutOtp" :disabled="otpLoading || checkoutOtpCode.length !== 4">
+                    <span v-if="otpLoading" class="spinner-border spinner-border-sm"></span>
+                    <span v-else>Verify OTP</span>
+                </button>
+                <p class="mt-2"><a href="javascript:void(0)" @click.prevent="sendCheckoutOtp" :disabled="otpLoading">Resend OTP</a></p>
+            </div>
+            </div>
+        </div>
+    </div>
+
     <div v-if="useableVouchers.length" class="modal fade use_voucher_modal" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -690,12 +775,34 @@
                 errors:{},
                 errors: [],
                 finalCalculatedTotal:0,
+                checkoutPhone:'',
+                checkoutStep:'phone',
+                phoneLoading:false,
+                otpRequired:false,
+                otpVerified:false,
+                otpSent:false,
+                otpLoading:false,
+                checkoutOtpCode:'',
+                otpCallback:null,
+                guestShippingFirstName:'',
+                guestShippingPhone:'',
+                guestShippingAddress:'',
+                guestShippingDistrict:null,
+                guestShippingThana:null,
+                guestShippingUnion:null,
+                guestAddressSaved:false,
+                guestAddressDisplay:'',
+                addressModalTab:'new',
             }
         },
     
         methods:{
 			normalizePhoneDigits(event){
-				event.target.value = event.target.value.replace(/[০-৯]/g, digit => '০১২৩৪৫৬৭৮৯'.indexOf(digit));
+				const raw = event.target.value || '';
+				const converted = raw.replace(/[০-৯]/g, digit => '০১২৩৪৫৬৭৮৯'.indexOf(digit));
+				const digits = converted.replace(/\D/g, '').replace(/^880/, '0');
+				event.target.value = digits;
+				this.checkoutPhone = digits;
 			},
             loading_method(){
              this.loading = true;
@@ -712,7 +819,7 @@
                   }
                 }
     
-                if(jQuery('.required_addtess').attr('data-required-address') == 'true'){
+                if(jQuery('.required_addtess').attr('data-required-address') == 'true' && !this.guestAddressSaved){
                     swal ( "Oops" , 'Please select your default shipping address!',  "error");
                     return true;
                 }
@@ -732,27 +839,32 @@
                     }
                 }
     
-                if (jQuery('.agree').is(':checked')) {
-    
-                        let shipping_method  = [];
-    
-                        jQuery('.select_shipping_options .selected_shipping').each(function(key,val){
-                            shipping_method[key] = { 
-                                product_id : jQuery(this).attr('data-product-id'),
-                                shipping_method: jQuery(this).attr('data-shipping-method'),
-                                shipping_cost: jQuery(this).attr('data-shipping-cost'),
-                            }
-                        });
-    
-                        let formData = {
-                            note: jQuery('.form_note').val(),
-                            coupon: jQuery('#couponeCode').val(),
-                            collectedVoucher: collectedVoucher,
-                            usedVoucher: usedVoucher,
-                            payment_method : jQuery('.paymentmethod .selected_payment').attr('data-payment-method'),
-                            shipping_method : shipping_method, 
-                            shipping_cost_120: Number(jQuery('.payment-calculation .shipping_cost_li1').attr('data-shipping-cost'))
+                    let shipping_method  = [];
+
+                    jQuery('.select_shipping_options .selected_shipping').each(function(key,val){
+                        shipping_method[key] = { 
+                            product_id : jQuery(this).attr('data-product-id'),
+                            shipping_method: jQuery(this).attr('data-shipping-method'),
+                            shipping_cost: jQuery(this).attr('data-shipping-cost'),
                         }
+                    });
+
+                    let formData = {
+                        note: jQuery('.form_note').val(),
+                        coupon: jQuery('#couponeCode').val(),
+                        collectedVoucher: collectedVoucher,
+                        usedVoucher: usedVoucher,
+                        payment_method : jQuery('.paymentmethod .selected_payment').attr('data-payment-method'),
+                        shipping_method : shipping_method, 
+                        shipping_cost_120: Number(jQuery('.payment-calculation .shipping_cost_li1').attr('data-shipping-cost')),
+                        guest_shipping_first_name: this.guestShippingFirstName || '',
+                        guest_shipping_phone: this.guestShippingPhone || '',
+                        guest_shipping_address: this.guestShippingAddress || '',
+                        guest_shipping_district: this.guestShippingDistrict || this.resolvedShippingDistrict || '',
+                        guest_shipping_thana: this.guestShippingThana || this.resolvedShippingThana || '',
+                        guest_shipping_union: this.guestShippingUnion || this.resolvedShippingUnion || '',
+                        session_key: localStorage.getItem("session_key") || ''
+                    }
          
                         
                         $('.proceed_to_pay').attr('disabled', true);
@@ -777,11 +889,235 @@
                                 swal ( "Oops" , response.data.message || 'Order Failed! Please try again later',  "error");
                             }
                         });
-                }else{
-                    swal ( "Oops" , 'Please accept terms and conditions!',  "error");
+            },
+
+            async submitInitialPhone(){
+                let phone = (this.checkoutPhone || '').replace(/\D/g, '');
+                if(!/^01[3-9]\d{8}$/.test(phone)){
+                    swal("Oops", 'Please enter a valid Bangladesh mobile number.', "error");
+                    return;
+                }
+                this.checkoutPhone = phone;
+                this.phoneLoading = true;
+                try {
+                    const response = await axios.post(this.$baseUrl+'/api/v1/checkout/phone-check', { phone });
+                    this.otpRequired = response.data.otp_required === true;
+                    this.otpVerified = !this.otpRequired;
+                    if(response.data.otp_bypass_reason === 'blocked_customer'){
+                        swal("Oops", 'This account is temporarily blocked. Please contact support.', "error");
+                        return;
+                    }
+                    if(!this.otpRequired){
+                        this.advanceToAddress();
+                    } else {
+                        this.otpCallback = () => {
+                            this.advanceToAddress();
+                        };
+                        await this.sendCheckoutOtp();
+                    }
+                } catch (e) {
+                    swal("Oops", 'Phone check failed. Please try again.', "error");
+                } finally {
+                    this.phoneLoading = false;
                 }
             },
+            advanceToAddress(){
+                this.checkoutStep = 'address';
+                this.addressModalTab = 'new';
+                this.$nextTick(() => {
+                    this.guestShippingPhone = this.checkoutPhone;
+                    if(!this.logged_in_user || !this.logged_in_user.id){
+                        if(this.otpVerified){
+                            const previousGuest = this.loadPreviousGuestAddress(this.checkoutPhone);
+                            if(previousGuest){
+                                this.guestShippingFirstName = previousGuest.guestShippingFirstName || '';
+                                this.guestShippingPhone = previousGuest.guestShippingPhone || this.checkoutPhone;
+                                this.guestShippingAddress = previousGuest.guestShippingAddress || '';
+                                this.guestShippingDistrict = previousGuest.guestShippingDistrict || null;
+                                this.guestShippingThana = previousGuest.guestShippingThana || null;
+                                this.guestShippingUnion = previousGuest.guestShippingUnion || null;
+                                this.resolvedShippingDistrict = this.guestShippingDistrict;
+                                this.resolvedShippingThana = this.guestShippingThana;
+                                this.resolvedShippingUnion = this.guestShippingUnion;
+                                if(this.resolvedShippingDistrict){
+                                    this.loadAddressUpazilas(this.resolvedShippingDistrict);
+                                }
+                                this.guestAddressSaved = true;
+                                this.guestAddressDisplay = [this.guestShippingFirstName, this.guestShippingPhone, this.selectedAddressDistrictTitle, this.selectedAddressThanaTitle, this.guestShippingAddress].filter(Boolean).join(' | ');
+                            }
+                        }
+                        jQuery('#addressModal').modal('show');
+                    }
+                });
+            },
+            async sendCheckoutOtp(){
+                this.otpLoading = true;
+                try {
+                    const response = await axios.post(this.$baseUrl+'/api/v1/checkout/send-otp', { phone: this.checkoutPhone });
+                    if(response.data.status == 1){
+                        this.otpSent = true;
+                        jQuery('#checkoutOtpModal').modal('show');
+                    } else {
+                        swal("Oops", response.data.message || 'Failed to send OTP.', "error");
+                    }
+                } catch (e) {
+                    swal("Oops", 'Failed to send OTP. Please try again.', "error");
+                } finally {
+                    this.otpLoading = false;
+                }
+            },
+            async verifyCheckoutOtp(){
+                if(!this.checkoutOtpCode || this.checkoutOtpCode.length !== 4){
+                    swal("Oops", 'Please enter the 4-digit OTP.', "error");
+                    return;
+                }
+                this.otpLoading = true;
+                try {
+                    const response = await axios.post(this.$baseUrl+'/api/v1/checkout/verify-otp', {
+                        phone: this.checkoutPhone,
+                        otp: this.checkoutOtpCode
+                    });
+                    if(response.data.status == 1){
+                        this.otpVerified = true;
+                        jQuery('#checkoutOtpModal').modal('hide');
+                        if(this.otpCallback){
+                            this.otpCallback();
+                        } else {
+                            this.advanceToAddress();
+                        }
+                    } else {
+                        swal("Oops", response.data.message || 'Invalid OTP.', "error");
+                    }
+                } catch (e) {
+                    swal("Oops", 'OTP verification failed. Please try again.', "error");
+                } finally {
+                    this.otpLoading = false;
+                }
+            },
+            addNewAddress(){
+                if(this.cartContainsGrocery){
+                    swal("Please check", "Please use a detailed saved address with an area for grocery delivery.", "error");
+                    return;
+                }
+
+                if(!this.resolvedShippingDistrict){
+                    swal("Please check", "ডেলিভারি চার্জ নির্ধারণের জন্য জেলা নির্বাচন করুন।", "error");
+                    return;
+                }
+
+                if(!this.resolvedShippingThana){
+                    swal("Please check", "ডেলিভারি চার্জ নির্ধারণের জন্য থানা/এরিয়া নির্বাচন করুন।", "error");
+                    return;
+                }
+
+                if(!this.logged_in_user || !this.logged_in_user.id){
+                    this.guestShippingFirstName = this.guestShippingFirstName || jQuery('.shipping_first_name').val();
+                    this.guestShippingPhone = this.guestShippingPhone || jQuery('.popup_phone').val();
+                    this.guestShippingAddress = this.shippingAddressInput;
+                    this.guestShippingDistrict = this.resolvedShippingDistrict;
+                    this.guestShippingThana = this.resolvedShippingThana;
+                    this.guestShippingUnion = this.resolvedShippingUnion;
+                    this.guestAddressSaved = true;
+                    this.guestAddressDisplay = [this.guestShippingFirstName, this.guestShippingPhone, this.selectedAddressDistrictTitle, this.selectedAddressThanaTitle, this.guestShippingAddress].filter(Boolean).join(' | ');
+                    this.saveGuestAddress(this.checkoutPhone, {
+                        guestShippingFirstName: this.guestShippingFirstName,
+                        guestShippingPhone: this.guestShippingPhone,
+                        guestShippingAddress: this.guestShippingAddress,
+                        guestShippingDistrict: this.guestShippingDistrict,
+                        guestShippingThana: this.guestShippingThana,
+                        guestShippingUnion: this.guestShippingUnion,
+                    });
+                    jQuery('#addressModal').modal('hide');
+                    swal({
+                        title: 'Address saved for checkout.',
+                        icon: "success",
+                        timer: 3000
+                    });
+                    return;
+                }
+
+                let token = localStorage.getItem("token");
+                let axiosConfig = {
+                    headers: {
+                        'Content-Type': 'application/json;charset=UTF-8',
+                        "Access-Control-Allow-Origin": "*",
+                        'Authorization': 'Bearer '+token
+                    }
+                }
+                let formData = new FormData();
+                formData.append('shipping_first_name', jQuery('.shipping_first_name').val());
+                formData.append('shipping_phone', jQuery('.popup_phone').val());
+                formData.append('shipping_address', this.shippingAddressInput);
+                formData.append('shipping_district', this.resolvedShippingDistrict);
+                formData.append('shipping_thana', this.resolvedShippingThana);
+                if(this.resolvedShippingUnion){
+                    formData.append('shipping_union', this.resolvedShippingUnion);
+                }
     
+                axios.post(this.$baseUrl+'/api/v1/add-new-address', formData, axiosConfig).then(response => {
+                    if(response.data.status == 1){
+                        swal({
+                            title: 'New address added successfull.',
+                            icon: "success",
+                            timer: 3000
+                        });
+                        this.shippingAddressInput = '';
+                        this.clearResolvedLocation();
+                        this.manualLocationOverride = false;
+                        this.$store.dispatch('loadedUser');
+                        jQuery('a[href="#home"]').trigger('click');
+                    }else{
+                        this.errors = response.data.message;
+                    }
+                });
+            },
+            change_address($address_id){
+                let token = localStorage.getItem("token");
+                let axiosConfig = {
+                    headers: {
+                        'Content-Type': 'application/json;charset=UTF-8',
+                        "Access-Control-Allow-Origin": "*",
+                        'Authorization': 'Bearer '+token
+                    }
+                }
+                let formData = new FormData();
+                formData.append('address_id', $address_id);
+                axios.post(this.$baseUrl+'/api/v1/update-default-address', formData, axiosConfig).then(response => {
+                    if(response.data.status == 1){
+                        this.$store.dispatch('loadedCart');
+                        this.$store.dispatch('loadedUser');
+                        jQuery('.close').trigger('click');   
+                   }else{
+                       swal ( "Please check" ,  response.data.message,  "error");
+                   }
+                });
+            },
+            loadPreviousGuestAddress(phone){
+                try {
+                    const raw = localStorage.getItem('guest_checkout_addresses');
+                    const all = raw ? JSON.parse(raw) : {};
+                    const key = (phone || '').replace(/\D/g, '');
+                    const previous = all[key];
+                    if(previous && previous.guestShippingAddress){
+                        return previous;
+                    }
+                } catch (e) {
+                    console.error('Failed to load previous guest address', e);
+                }
+                return null;
+            },
+            saveGuestAddress(phone, data){
+                try {
+                    const raw = localStorage.getItem('guest_checkout_addresses');
+                    const all = raw ? JSON.parse(raw) : {};
+                    const key = (phone || '').replace(/\D/g, '');
+                    all[key] = data;
+                    localStorage.setItem('guest_checkout_addresses', JSON.stringify(all));
+                } catch (e) {
+                    console.error('Failed to save guest address', e);
+                }
+            },
+
             checkUseableVoucher(){
                 let usedVoucher = 0;
                 jQuery('.close').trigger('click');
@@ -995,81 +1331,7 @@
                 this.resolvedCityId = null;
                 this.resolvedZoneId = null;
             },
-            addNewAddress(){
-                if(this.cartContainsGrocery){
-                    swal("Please check", "Please use a detailed saved address with an area for grocery delivery.", "error");
-                    return;
-                }
 
-                if(!this.resolvedShippingDistrict){
-                    swal("Please check", "ডেলিভারি চার্জ নির্ধারণের জন্য জেলা নির্বাচন করুন।", "error");
-                    return;
-                }
-
-                if(!this.resolvedShippingThana){
-                    swal("Please check", "ডেলিভারি চার্জ নির্ধারণের জন্য থানা/এরিয়া নির্বাচন করুন।", "error");
-                    return;
-                }
-
-                let token = localStorage.getItem("token");
-                let axiosConfig = {
-                    headers: {
-                        'Content-Type': 'application/json;charset=UTF-8',
-                        "Access-Control-Allow-Origin": "*",
-                        'Authorization': 'Bearer '+token
-                    }
-                }
-                let formData = new FormData();
-                formData.append('shipping_first_name', $('.shipping_first_name').val());
-                formData.append('shipping_phone', $('.popup_phone').val());
-                formData.append('shipping_address', this.shippingAddressInput);
-                formData.append('shipping_district', this.resolvedShippingDistrict);
-                formData.append('shipping_thana', this.resolvedShippingThana);
-                if(this.resolvedShippingUnion){
-                    formData.append('shipping_union', this.resolvedShippingUnion);
-                }
-    
-                axios.post(this.$baseUrl+'/api/v1/add-new-address', formData, axiosConfig).then(response => {
-                    if(response.data.status == 1){
-                        swal({
-                            title: 'New address added successfull.',
-                            icon: "success",
-                            timer: 3000
-                        });
-                        this.shippingAddressInput = '';
-                        this.clearResolvedLocation();
-                        this.manualLocationOverride = false;
-                        this.$store.dispatch('loadedUser');
-                        jQuery('a[href="#home"]').trigger('click');
-                    }else{
-                        this.errors = response.data.message;
-                    }
-                });
-            },
-            change_address($address_id){
-                let token = localStorage.getItem("token");
-                let axiosConfig = {
-                    headers: {
-                        'Content-Type': 'application/json;charset=UTF-8',
-                        "Access-Control-Allow-Origin": "*",
-                        'Authorization': 'Bearer '+token
-                    }
-                }
-                let formData = new FormData();
-                formData.append('address_id', $address_id);
-                axios.post(this.$baseUrl+'/api/v1/update-default-address', formData, axiosConfig).then(response => {
-                    if(response.data.status == 1){
-                        this.$store.dispatch('loadedCart');
-                        this.$store.dispatch('loadedUser');
-                        jQuery('.close').trigger('click');   
-                   }else{
-                        swal ( "Please check" ,  response.data.message,  "error");
-                    }
-                });
-            },
-        
-    
-    
             async getDistrict(){
             let id =  jQuery('#division').find('option:selected').val();
             await axios.get(this.$baseUrl + "/api/v1/get-district/"+id).then((response) => {
@@ -1165,7 +1427,7 @@
             },
             scrollToTop() {
                 window.scrollTo(0,0);
-            }
+            },
     
             // getCollectedVoucher(){
             // 	let token = localStorage.getItem("token");
@@ -1197,6 +1459,10 @@
     
         },
         computed:{
+            isValidBangladeshPhone(){
+                const phone = (this.checkoutPhone || '').replace(/\D+/g, '');
+                return /^01[3-9]\d{8}$/.test(phone);
+            },
             selectedAddressDistrictTitle(){
                 const district = (Array.isArray(this.districts) ? this.districts : [])
                     .find(item => String(item.id) === String(this.resolvedShippingDistrict));
