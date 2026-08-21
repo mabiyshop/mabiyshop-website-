@@ -31,3 +31,7 @@ Route::get('/barcode/{id}', function(Request $request){
     return 'data:image/png;base64,' . DNS1D::getBarcodePNG($request->id, 'C39',5,10);
 });
 
+Route::post('checkout/phone-check', 'Api\ApiController@checkoutPhoneCheck');
+Route::post('checkout/send-otp', 'Api\ApiController@sendCheckoutOtp');
+Route::post('checkout/verify-otp', 'Api\ApiController@verifyCheckoutOtp');
+

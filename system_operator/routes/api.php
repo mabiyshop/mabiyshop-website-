@@ -154,10 +154,14 @@ Route::prefix('v1')->group(function () {
     Route::post('digital-add-to-cart', 'Api\ApiController@digitalAddToCart');
 	
 	//Order
+	Route::post('checkout/phone-check', 'Api\ApiController@checkoutPhoneCheck');
+	Route::post('checkout/send-otp', 'Api\ApiController@sendCheckoutOtp');
+	Route::post('checkout/verify-otp', 'Api\ApiController@verifyCheckoutOtp');
 	Route::post('order', 'Api\ApiController@Order')->middleware([
 		\App\Http\Middleware\RejectBlockedCustomer::class,
 		\App\Http\Middleware\ApplyOrderRiskDecision::class,
 	]);
+	Route::post('checkout/register-verified-customer', 'Api\ApiController@registerVerifiedCheckoutCustomer');
 	Route::get('pay-again/{order_id}', 'Api\ApiController@payAgain');
 	Route::get('digital-payment-link/{order_id}', 'Api\ApiController@digitalPaymentLink');
 	Route::get('cancel-order/{order_id}', 'Api\ApiController@cancelOrder');

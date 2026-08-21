@@ -5,9 +5,13 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\CustomerBlock;
+use App\Models\Addresses;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Throwable;
+use Illuminate\Database\QueryException;
 
 class CheckoutOtpService
 {
@@ -98,6 +102,7 @@ class CheckoutOtpService
                     'otp_required' => false,
                     'otp_bypass_reason' => 'trusted_mabiy_history',
                     'customer_exists' => $customerExists,
+                    'last_shipping_address' => $this->lastUsableShippingAddress($user),
                 ];
             }
 
@@ -188,7 +193,13 @@ class CheckoutOtpService
         $stored['verified_at'] = now()->toDateTimeString();
         Cache::put($cacheKey, $stored, now()->addMinutes(10));
 
-        return ['status' => 1, 'message' => 'OTP verified successfully.'];
+        $user = User::where('phone', $normalizedPhone)->first();
+
+        return [
+            'status' => 1,
+            'message' => 'OTP verified successfully.',
+            'last_shipping_address' => $user ? $this->lastUsableShippingAddress($user) : null,
+        ];
     }
 
     public function isCheckoutOtpVerified(string $phone): bool
@@ -230,7 +241,41 @@ class CheckoutOtpService
         Cache::forget('checkout_otp_attempts:' . md5($normalizedPhone));
     }
 
-    private function normalizePhone(string $phone): ?string
+    public function resolveVerifiedCustomer(string $phone, string $name, string $streetAddress): User
+    {
+        $normalizedPhone = $this->normalizePhone($phone);
+        $phoneState = $normalizedPhone ? $this->phoneCheck($normalizedPhone) : ['status' => 0];
+        $trusted = ($phoneState['status'] ?? 0) == 1 && empty($phoneState['otp_required']);
+
+        if (!$normalizedPhone || (!$trusted && !$this->isCheckoutOtpVerified($normalizedPhone))) {
+            throw new \DomainException('Checkout phone verification is required.');
+        }
+
+        try {
+            return DB::transaction(function () use ($normalizedPhone, $name) {
+            $customer = User::where('phone', $normalizedPhone)->lockForUpdate()->first();
+            if ($customer) {
+                return $customer;
+            }
+
+            $customer = new User();
+            $customer->name = trim($name);
+            $customer->phone = $normalizedPhone;
+            $customer->password = Hash::make(Str::random(40));
+            $customer->status = 1;
+            $customer->save();
+            return $customer;
+            });
+        } catch (QueryException $exception) {
+            $customer = User::where('phone', $normalizedPhone)->first();
+            if ($customer) {
+                return $customer;
+            }
+            throw $exception;
+        }
+    }
+
+    public function normalizePhone(string $phone): ?string
     {
         $digits = preg_replace('/\D+/', '', $phone);
 
@@ -257,5 +302,74 @@ class CheckoutOtpService
             'cancelled_orders' => $cancelledOrders,
             'return_affected_orders' => $returnAffectedOrders,
         ];
+    }
+
+    private function lastUsableShippingAddress(User $user): ?array
+    {
+        $orders = Order::where('user_id', $user->id)
+            ->where('status', 6)
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($orders as $order) {
+            $snapshot = $order->shipping_address_snapshot;
+            if (is_string($snapshot)) {
+                $snapshot = json_decode($snapshot, true);
+            }
+            if (!is_array($snapshot)) {
+                $legacyAddress = $order->historical_shipping_address;
+                $snapshot = is_object($legacyAddress) ? (array) $legacyAddress : $legacyAddress;
+            }
+            if (!is_array($snapshot)) {
+                continue;
+            }
+
+            $shippingFirstName = trim((string) ($snapshot['shipping_first_name'] ?? ''));
+            if ($shippingFirstName === '') {
+                $shippingFirstName = trim((string) ($snapshot['shipping_last_name'] ?? ''));
+            }
+
+            if (
+                $shippingFirstName === ''
+                || empty($snapshot['shipping_address'])
+                || empty($snapshot['shipping_district'])
+                || empty($snapshot['shipping_thana'])
+            ) {
+                continue;
+            }
+
+            return [
+                'shipping_first_name' => $shippingFirstName,
+                'shipping_phone' => $snapshot['shipping_phone'] ?? null,
+                'shipping_address' => $snapshot['shipping_address'],
+                'shipping_district' => $snapshot['shipping_district'],
+                'shipping_thana' => $snapshot['shipping_thana'],
+                'shipping_union' => $snapshot['shipping_union'] ?? null,
+                'district_title' => $snapshot['district_title'] ?? null,
+                'upazila_title' => $snapshot['upazila_title'] ?? null,
+                'union_title' => $snapshot['union_title'] ?? null,
+            ];
+        }
+
+        $address = Addresses::where('id', $user->default_address_id)
+            ->where('user_id', $user->id)
+            ->where('is_deleted', 0)
+            ->with('district', 'upazila', 'union')
+            ->first();
+        if ($address && $address->shipping_first_name && $address->shipping_address && $address->shipping_district && $address->shipping_thana) {
+            return [
+                'shipping_first_name' => $address->shipping_first_name,
+                'shipping_phone' => $address->shipping_phone,
+                'shipping_address' => $address->shipping_address,
+                'shipping_district' => $address->shipping_district,
+                'shipping_thana' => $address->shipping_thana,
+                'shipping_union' => $address->shipping_union ?: null,
+                'district_title' => $address->district->title ?? null,
+                'upazila_title' => $address->upazila->title ?? null,
+                'union_title' => $address->union->title ?? null,
+            ];
+        }
+
+        return null;
     }
 }

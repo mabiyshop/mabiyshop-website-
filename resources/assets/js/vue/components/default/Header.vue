@@ -906,7 +906,7 @@
                      </table>
                   </div>
                </div>
-               <div class="col-12 col-sm-12 col-md-5 col-lg-5 payment">
+               <div class="col-12 col-sm-12 col-md-5 col-lg-5 payment legacy-mobile-checkout">
                   <h5 class="text-uppercase cart_summary_title">{{ $t('Shipping information') }}</h5>
 
 
@@ -953,9 +953,9 @@
                                  </div>
                                  <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
                               </div>
-                              <div v-else>
-                                 <p class="required_addtess" data-required-login="true">{{ $t('You have to') }} <a href=""> login </a> {{ $t('first to add your shipping address') }}.</p>
-                              </div>
+                               <div v-else>
+                                  <p class="required_addtess" data-required-login="true" v-if="logged_in_user">{{ $t('You have to') }} <a href=""> login </a> {{ $t('first to add your shipping address') }}.</p>
+                               </div>
                            </div>
 
                   </span>
@@ -1000,7 +1000,7 @@
                                  </div>
                                  <div class="col-lg-1 pl-0"><i class="fa fa-pencil address_btn" data-toggle="modal" data-target="#addressModal" aria-hidden="true"></i></div>
                               </div>
-                              <div v-else><p class="required_addtess" data-required-login="true">{{ $t('You have to') }} <a href="" class="text-info" @click.prevent="showLoginPopup()"> login </a> {{ $t('first to add your shipping address') }}.</p></div>
+                               <div v-else><p class="required_addtess" data-required-login="true" v-if="logged_in_user">{{ $t('You have to') }} <a href="" class="text-info" @click.prevent="showLoginPopup()"> login </a> {{ $t('first to add your shipping address') }}.</p></div>
                            </div>
 
                   </span>
@@ -1012,15 +1012,6 @@
                   <div class="note">
                      <h5 class="text-uppercase cart_summary_title mt-2">  {{ $t('Write a note') }} </h5>
                      <textarea type="text" v-model="note" class="form-control form_note" rows="3" :placeholder="$t('Write a note here')+'..'"></textarea>
-                     <div id="addCouponBlock">
-                        <h5 class="text-uppercase cart_summary_title mt-2">  {{ $t('Add Coupon') }} </h5>
-                        <div class="input-group mb-3">
-                           <input id="couponeCode" type="text" class="form-control" :placeholder="$t('Write a coupon code here')+'..'"  aria-describedby="basic-addon2">
-                           <div class="input-group-append">
-                              <span class="input-group-text d-block" @click.prevent="applyCouponCode()" id="basic-addon2"> {{ $t('Apply') }}</span>
-                           </div>
-                        </div>
-                     </div>
                   </div>
                   <div v-if="collectedVoucher.length" class="collect_voucher_modal">
                      <h5 class="text-uppercase cart_summary_title">{{ $t('Collected Voucher') }}</h5>
@@ -1087,20 +1078,20 @@
 
                   <div class="procced-checkout mt-3">
                      <ul>
-                        <li> <input type="checkbox" value="agree" class="agree"> 
-
-
-                        <!-- <small> </small> -->
-                        <small>
-                           <router-link v-if="static_pages.terms_of_use" :to="{ name: 'pages', params: {slug: static_pages.terms_of_use } }">{{ $t('I agree to the terms and Conditions') }} </router-link>
-                        </small>
-                        
-                        </li>
                         <li>
                           <button class="btn btn-secondary site_color2 back_to_cart back_to_cartbtn"> {{ $t('Cart') }} </button> 
-                          <button class="btn btn-primary site_color1 proceed_to_pay" @click.prevent="proceedToPay()" id="confirm_purchase_btn"> {{ $t('Place Order') }} </button> 
+                          <button class="btn btn-primary site_color1 proceed_to_pay" @click.prevent="proceedToPay()" id="confirm_purchase_btn">PLACE ORDER • ৳{{ finalCalculatedTotal }}</button>
                         </li>
                      </ul>
+                  </div>
+                  <div id="legacyCartCouponBlock" class="legacy-cart-coupon">
+                     <button type="button" class="legacy-cart-coupon-toggle" @click="legacyCouponExpanded = !legacyCouponExpanded">আপনার কি কোনো কুপন আছে?</button>
+                     <div v-if="legacyCouponExpanded" class="input-group mt-2 mb-0">
+                        <input id="legacyCartCouponCode" type="text" class="form-control" :placeholder="$t('Write a coupon code here')+'..'" aria-describedby="legacyCartCouponApply">
+                        <div class="input-group-append">
+                           <span class="input-group-text d-block" @click.prevent="applyCouponCode()" id="legacyCartCouponApply">{{ $t('Apply') }}</span>
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>
@@ -1902,6 +1893,7 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
                errors:{},
                errors: [],
                finalCalculatedTotal:0,
+               legacyCouponExpanded:false,
                suggetionProductstatus:false,
        }
      },
@@ -2481,112 +2473,10 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
       },
 
       proceedToPay(){
-            let collectedVoucher = '';
-            let usedVoucher = '';
-   			let token = localStorage.getItem("token");
-   			let axiosConfig = {
-   			  headers: {
-   				  'Content-Type': 'application/json;charset=UTF-8',
-   				  "Access-Control-Allow-Origin": "*",
-   				  'Authorization': 'Bearer '+token
-   			  }
-   			}
-   
-               if(jQuery('.required_addtess').attr('data-required-address') == 'true'){
-                   swal ( "Oops" , 'Please select your default shipping address!',  "error");
-                   return true;
-               }
-
-               if(jQuery('.required_addtess').attr('data-required-login') == 'true'){
-                   jQuery('#popupLoignModal').trigger('click');
-                   return true;
-               }
-   
-               if(this.useableVouchers.length){
-                   let isCheckedUsedVoucher = false;
-                   jQuery('.useable_vouchers_radio').each(function(key,val){
-                       if (jQuery(this).is(':checked')) {
-                           isCheckedUsedVoucher = true;
-                           usedVoucher = jQuery(this).val();
-                       }
-                   });
-                   if(!isCheckedUsedVoucher){
-                       swal ( "Oops" , 'Please select which voucher you want to use!',  "error");
-                       jQuery('.voucher_button li').addClass('validated_class');
-                       return true;
-                   }
-               }
-   
-               if (jQuery('.agree').is(':checked')) {
-   
-                       let shipping_method  = [];
-   
-                       jQuery('.select_shipping_options .selected_shipping').each(function(key,val){
-                           shipping_method[key] = { 
-                               product_id : jQuery(this).attr('data-product-id'),
-                               shipping_method: jQuery(this).attr('data-shipping-method'),
-                               shipping_cost: jQuery(this).attr('data-shipping-cost'),
-                           }
-                       });
-   
-                       let formData = {
-                           note: jQuery('.form_note').val(),
-                           coupon: jQuery('#couponeCode').val(),
-                           partial_payment: jQuery('#partial_payment').val(),
-                           collectedVoucher: collectedVoucher,
-                           usedVoucher: usedVoucher,
-                           payment_method : jQuery('.paymentmethod .selected_payment').attr('data-payment-method'),
-                           shipping_method : shipping_method,
-                           shipping_cost: Number(jQuery('.payment-calculation .shipping_cost_li1').attr('data-shipping-cost'))
-                       }
-        
-                       
-                       $('#confirm_purchase_btn').attr('disabled', true);
-                       $('#confirm_purchase_btn').html('<span class="spinner-border spinner-border-sm"></span>');
-                       
-   
-                       axios.post(this.$baseUrl+'/api/v1/order', formData, axiosConfig).then(response => {
-                           if(response.data.status == 1){
-                               swal({
-                                   title: 'Your order has been placed successfully.',
-                                   icon: "success",
-                                   timer: 3000
-                                }).then(()=>{
-                                   $('.cart_close').trigger('click');
-                                   
-                                   this.$store.dispatch('loadedCart');
-                                   this.$router.push({name:'orderDetails',params: {id: response.data.invoice.order_id } });
-                               });
-                           }else if(response.data.status == 2){
-                               swal({
-                                   title: response.data.message,
-                                   icon: "error",
-                                   timer: 4000
-                                }).then(()=>{
-                                   this.$store.dispatch('loadedCart');
-                               });
-                           }else if( response.data.status == 302){
-                               window.location.href = response.data.url;
-                           }else if(response.data.status == 0){
-                                swal({
-                                   title: response.data.message,
-                                   html:true,
-                                   icon: "error",
-                                   timer: 10000
-                                });
-                           }else{
-                               swal ( "Oops" , 'Order Failed! Please try again later',  "error");
-                           }
-                       }).catch(() => {
-                           swal ( "Oops" , 'Order Failed! Please try again later',  "error");
-                       }).finally(() => {
-                           $('#confirm_purchase_btn').attr('disabled', false);
-                           $('#confirm_purchase_btn').html('Place Order');
-                       });
-               }else{
-                   swal ( "Oops" , 'Please accept terms and conditions!',  "error");
-               }
-   },
+         jQuery('.cart_close').trigger('click');
+         this.$router.push({name: 'checkout'});
+         return true;
+      },
    
            checkUseableVoucher(){
                let usedVoucher = 0;
@@ -3022,13 +2912,13 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
    			}
    
    			let formData = new FormData();
-   			formData.append('coupon', $('#couponeCode').val());
+			formData.append('coupon', $('#legacyCartCouponCode').val());
                axios.post(this.$baseUrl+'/api/v1/get-coupon-amount', formData,axiosConfig).then(response => {
                    if(response.data.status == 1){
                        this.coupon_discount = response.data;
                        jQuery('.coupon_discount').attr('data-coupon-discount',response.data.amount);
                         
-                       jQuery('#addCouponBlock').hide();
+                       this.legacyCouponExpanded = false;
                        jQuery('.coupon_discount').show();
                        this.calculateFinalAmount();
                        swal({
@@ -3076,7 +2966,7 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
          },
 
          removeCoupon(){
-               jQuery('#addCouponBlock').show();
+               this.legacyCouponExpanded = false;
                jQuery('.coupon_discount').hide();
                jQuery('.coupon_discount').attr('data-coupon-discount',0)
                let that = this;
@@ -3086,6 +2976,11 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
            },
 
          showCheckoutSection(){
+            if(!this.logged_in_user || !this.logged_in_user.id){
+                jQuery('.cart_close').trigger('click');
+                this.$router.push({name: 'checkout'});
+                return;
+            }
             this.calculateFinalAmount();
             this.$store.dispatch('loadedVoucher');
             this.$store.dispatch('loadedUsableVoucher');
@@ -3381,3 +3276,118 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
      },
    }
 </script>
+
+<style scoped>
+@media (max-width: 767px) {
+   .legacy-mobile-checkout {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 14px 14px 104px;
+      overflow-x: hidden;
+      background: #f5f8f8;
+   }
+   .legacy-mobile-checkout > .note { order: 3; }
+   .legacy-mobile-checkout > .collect_voucher_modal,
+   .legacy-mobile-checkout > .voucher_button { order: 3; }
+   .legacy-mobile-checkout > .payment-calculation { order: 4; }
+   .legacy-mobile-checkout > .paymentmethod { order: 5; }
+   .legacy-mobile-checkout > .procced-checkout { order: 6; }
+   .legacy-mobile-checkout > .legacy-cart-coupon { order: 7; }
+   .legacy-mobile-checkout .address_details,
+   .legacy-mobile-checkout .address_details_alt,
+   .legacy-mobile-checkout .note,
+   .legacy-mobile-checkout .payment-calculation,
+   .legacy-mobile-checkout .paymentmethod,
+   .legacy-mobile-checkout .collect_voucher_modal,
+   .legacy-mobile-checkout .voucher_button {
+      width: 100%;
+      min-width: 0;
+      margin-top: 12px !important;
+      padding: 15px;
+      border: 1px solid #e1e9e8;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 5px 18px rgba(28, 66, 63, .05);
+      overflow-wrap: anywhere;
+   }
+   .legacy-mobile-checkout .legacy-cart-coupon {
+      width: 100%;
+      min-width: 0;
+      margin: 12px 0 24px;
+      padding: 14px 15px;
+      border: 1px solid #e1e9e8;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 5px 18px rgba(28, 66, 63, .05);
+      overflow: visible;
+   }
+   .legacy-mobile-checkout .legacy-cart-coupon-toggle {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      color: #0f8f87;
+      background: transparent;
+      text-align: left;
+   }
+   .legacy-mobile-checkout .legacy-cart-coupon .input-group { flex-wrap: nowrap; }
+   .legacy-mobile-checkout .legacy-cart-coupon .form-control { min-width: 0; }
+   .legacy-mobile-checkout .cart_summary_title {
+      margin: 0 0 11px !important;
+      padding: 0;
+      border: 0;
+      font-size: 16px;
+      line-height: 1.35;
+      text-decoration: none;
+   }
+   .legacy-mobile-checkout textarea,
+   .legacy-mobile-checkout input,
+   .legacy-mobile-checkout .input-group {
+      max-width: 100%;
+      min-width: 0;
+   }
+    .legacy-mobile-checkout .paymentmethod .list-group {
+       display: flex;
+       flex-direction: row;
+       gap: 10px;
+    }
+    .legacy-mobile-checkout .paymentmethod .list-group-item {
+       flex: 1 1 50%;
+       min-width: 0;
+       text-align: center;
+    }
+    .legacy-mobile-checkout .paymentmethod img {
+       max-width: 100%;
+       height: auto;
+    }
+   .legacy-mobile-checkout .procced-checkout {
+      width: 100%;
+      margin: 14px 0 0 !important;
+      padding: 0;
+      position: static !important;
+      float: none !important;
+      clear: both;
+   }
+   .legacy-mobile-checkout .procced-checkout ul,
+   .legacy-mobile-checkout .procced-checkout li {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+   }
+   .legacy-mobile-checkout .back_to_cartbtn { display: none; }
+   .legacy-mobile-checkout .proceed_to_pay {
+      position: static !important;
+      inset: auto !important;
+      transform: none;
+      float: none !important;
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      min-height: 48px;
+      margin: 0 auto 4px;
+      border-radius: 10px;
+   }
+}
+</style>

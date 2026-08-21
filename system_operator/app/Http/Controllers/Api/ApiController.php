@@ -80,6 +80,29 @@ use Response;
 
 class ApiController extends Controller
 {
+	private const CUSTOMER_CHECKOUT_FREE_DELIVERY_THRESHOLD = 1990;
+	private const DEFAULT_CHECKOUT_OFFER_MESSAGE = 'অফার চলছে — আপনার প্রয়োজন হলে এখনই কনফার্ম করুন';
+
+	private function checkoutOfferSettings()
+	{
+		$enabled = (int) \Helper::getSettings('checkout_offer_enabled') === 1;
+		$percent = min(100, max(0, (float) (\Helper::getSettings('checkout_offer_discount_percent') ?: 0)));
+		$minutes = max(1, (int) (\Helper::getSettings('checkout_offer_countdown_minutes') ?: 60));
+		$message = trim((string) \Helper::getSettings('checkout_offer_message'));
+
+		return [
+			'enabled' => $enabled,
+			'percent' => $enabled ? $percent : 0,
+			'message' => $message !== '' ? $message : self::DEFAULT_CHECKOUT_OFFER_MESSAGE,
+			'countdown_minutes' => $minutes,
+		];
+	}
+
+	private function guestOrderReference($orderId, $paymentId, $userId)
+	{
+		return hash_hmac('sha256', $orderId . '|' . $paymentId . '|' . $userId, (string) config('app.key'));
+	}
+
 	public $base_url;
 	public function __construct()
 	{
@@ -1768,7 +1791,7 @@ class ApiController extends Controller
 		$data['title'] = \Helper::getsettings('flashsale_products_title') ?? 'Flashsale Products';
 		return response()->json($data, 200);
 	}
-	public function getFeaturedProduct()
+	public function getFeaturedProduct(Request $request)
 	{
 		$data = [];
 		$featured_products_ids = \Helper::getsettings('featured_products');
@@ -1783,6 +1806,23 @@ class ApiController extends Controller
 			->with('specification')
 			->orderby('shuffle_number', 'desc')
 			->get();
+		if ($request->boolean('checkout_candidates')) {
+			$additionalProducts = Product::where('is_active', 1)
+				->where('is_deleted', 0)
+				->where('product_qc', 1)
+				->where('is_promotion', 0)
+				->where('is_grocery', 'other')
+				->where('product_type', 'simple')
+				->where('in_stock', '>', 0)
+				->where('qty', '>', 0)
+				->whereNotIn('id', $products->pluck('id'))
+				->with('meta')
+				->with('specification')
+				->orderby('shuffle_number', 'desc')
+				->limit(12)
+				->get();
+			$products = $products->concat($additionalProducts);
+		}
 		foreach ($products as $item) {
 			$item->price_after_offer = number_format((int)\Helper::price_after_offer($item->id), 0);
 			$item->price = number_format((int)$item->price, 0);
@@ -4041,6 +4081,77 @@ class ApiController extends Controller
 			}
 
 			$SellerWiseGroup = array_values($SellerWiseGroup);
+
+			if (!$user && $request->guest_shipping_district && $request->guest_shipping_thana) {
+				$guestDistrict = District::find((int) $request->guest_shipping_district);
+				$guestUpazila = Upazila::find((int) $request->guest_shipping_thana);
+				if (!$guestDistrict || !$guestUpazila || (int) $guestUpazila->district_id !== (int) $guestDistrict->id) {
+					return response()->json(['status' => 0, 'message' => 'Please select a valid delivery district and area.'], 200);
+				}
+				$isGuestPathaoReady = $guestDistrict
+					&& $guestUpazila
+					&& (int) $guestUpazila->district_id === (int) $guestDistrict->id
+					&& is_numeric($guestDistrict->city_id)
+					&& (int) $guestDistrict->city_id > 0
+					&& is_numeric($guestUpazila->zone_id)
+					&& (int) $guestUpazila->zone_id > 0;
+				$pathaoShippingEnabled = Helper::getSettings('pathao_shipping_enable') == 1;
+				$defaultShippingEnabled = Helper::getSettings('default_shipping_enable') == 1;
+
+				if ($pathaoShippingEnabled) {
+					if (!$isGuestPathaoReady) {
+						return response()->json([
+							'status' => 0,
+							'message' => 'The selected delivery address does not have a valid Pathao location mapping. Please update your address.',
+						], 200);
+					}
+					$shipping_cost = 0;
+					foreach ($SellerWiseGroup as $group) {
+						$defaultSeller = Admins::find(Helper::getSettings('default_branch_id'));
+						$seller = Admins::find($group['shop_info']['seller_id']);
+						$storeId = $seller->pathao_store_id ?? $defaultSeller->pathao_store_id;
+						$itemWeight = 0;
+						foreach ($group['items'] as $singleItem) {
+							$itemWeight += max(0.1, Helper::convertProductWeightToKg($singleItem->product_id) * $singleItem->qty);
+						}
+						$calculatedPrice = Helper::calculateShippingCost($storeId, 2, 48, $itemWeight, $guestDistrict->city_id, $guestUpazila->zone_id);
+						if (
+							!is_object($calculatedPrice)
+							|| ($calculatedPrice->type ?? null) !== 'success'
+							|| !isset($calculatedPrice->data->price)
+							|| !isset($calculatedPrice->data->discount)
+							|| !isset($calculatedPrice->data->additional_charge)
+							|| !isset($calculatedPrice->data->promo_discount)
+						) {
+							return response()->json(['status' => 0, 'message' => 'Unable to calculate delivery charge. Please try again.'], 200);
+						}
+						$shipping_cost += ($calculatedPrice->data->price - $calculatedPrice->data->discount)
+							+ $calculatedPrice->data->additional_charge - $calculatedPrice->data->promo_discount;
+					}
+				} elseif ($defaultShippingEnabled) {
+					$isInsideLocation = in_array((int) $guestDistrict->id, array_map('intval', $default_shipping_inside_location_ids), true);
+					$shippingOrigin = $isInsideLocation
+						? Helper::getSettings('default_shipping_inside_origin')
+						: Helper::getSettings('default_shipping_outside_origin');
+					$shipping_cost = $total_weight_in_kg > 1
+						? $shippingOrigin + ($total_weight_in_kg * Helper::getSettings('default_shipping_increase_per_kg'))
+						: $shippingOrigin;
+				} else {
+					$shipping_cost = 0;
+					foreach ($cartData as $singleItem) {
+						$product = Product::find($singleItem->product_id);
+						if ($product && $singleItem->product_type != 'digital' && $singleItem->product_type != 'service' && $product->is_grocery != 'grocery') {
+							$options = Helper::get_shipping_cost(null, $singleItem->seller_id, $singleItem->product_id, $guestDistrict->id);
+							$shipping_cost += $singleItem->qty * ($options['standard_shipping'] ?? 0);
+						}
+					}
+				}
+
+				if ($sub_total >= self::CUSTOMER_CHECKOUT_FREE_DELIVERY_THRESHOLD) {
+					$shipping_cost = 0;
+					$shipping_cost_grocery = 0;
+				}
+			}
 			$data['cart'] = $SellerWiseGroup;
 			$data['discount_amount'] = $discount_amount;
 			$data['sub_total'] = $sub_total;
@@ -4178,6 +4289,14 @@ class ApiController extends Controller
 			}
 
 			$data['total_items'] = count($cartData);
+			$checkoutOffer = $this->checkoutOfferSettings();
+			$data['checkout_offer_enabled'] = $checkoutOffer['enabled'];
+			$data['checkout_offer_discount_percent'] = $checkoutOffer['percent'];
+			$data['checkout_offer_message'] = $checkoutOffer['message'];
+			$data['checkout_offer_countdown_minutes'] = $checkoutOffer['countdown_minutes'];
+			$data['checkout_offer_discount_amount'] = $checkoutOffer['enabled']
+				? round($sub_total * $checkoutOffer['percent'] / 100, 2)
+				: 0;
 			return response()->json($data, 200);
 		} else {
 			$data['status'] = 0;
@@ -4537,6 +4656,60 @@ class ApiController extends Controller
 		return response()->json($result, 200);
 	}
 
+	public function registerVerifiedCheckoutCustomer(Request $request)
+	{
+		$request->validate([
+			'phone' => 'required|string',
+			'name' => 'required|string|max:255',
+			'shipping_address' => 'required|string',
+			'shipping_district' => 'required|integer',
+			'shipping_thana' => 'required|integer',
+			'shipping_union' => 'nullable|integer',
+		]);
+
+		$district = District::find((int) $request->shipping_district);
+		$thana = Upazila::find((int) $request->shipping_thana);
+		if (!$district || !$thana || (int) $thana->district_id !== (int) $district->id) {
+			return response()->json(['status' => 0, 'message' => 'Please select a valid delivery district and area.'], 200);
+		}
+		if ($request->shipping_union) {
+			$union = Union::find((int) $request->shipping_union);
+			if (!$union || (int) $union->upazila_id !== (int) $thana->id) {
+				return response()->json(['status' => 0, 'message' => 'Please select a valid specific area.'], 200);
+			}
+		}
+
+		try {
+			$service = app(CheckoutOtpService::class);
+			$customer = $service->resolveVerifiedCustomer($request->phone, $request->name, $request->shipping_address);
+			$normalizedPhone = $service->normalizePhone($request->phone);
+			$addressId = DB::transaction(function () use ($request, $customer, $normalizedPhone) {
+				$addressId = DB::table('addresses')->insertGetId([
+					'user_id' => $customer->id,
+					'shipping_first_name' => trim($request->name),
+					'shipping_last_name' => '',
+					'shipping_phone' => $normalizedPhone,
+					'shipping_email' => null,
+					'shipping_address' => trim($request->shipping_address),
+					'shipping_postcode' => null,
+					'shipping_division' => 0,
+					'shipping_district' => (int) $request->shipping_district,
+					'shipping_thana' => (int) $request->shipping_thana,
+					'shipping_union' => $request->shipping_union ? (int) $request->shipping_union : null,
+					'is_deleted' => 0,
+					'created_at' => now(),
+					'updated_at' => now(),
+				]);
+				DB::table('users')->where('id', $customer->id)->update(['default_address_id' => $addressId, 'updated_at' => now()]);
+				return $addressId;
+			});
+
+			return response()->json(['status' => 1, 'customer_id' => $customer->id, 'address_id' => $addressId], 200);
+		} catch (\DomainException $exception) {
+			return response()->json(['status' => 0, 'message' => $exception->getMessage()], 200);
+		}
+	}
+
 	//Order
 	public function Order(Request $request){
 		$user = auth('customer-api')->user();
@@ -4557,8 +4730,8 @@ class ApiController extends Controller
 			return response()->json($data, 200);
 		}
 
-		$checkoutPhone = (string) ($request->shipping_phone ?? '');
-		if ($checkoutPhone === '') {
+		$checkoutPhone = (string) ($request->shipping_phone ?? $request->guest_shipping_phone ?? '');
+		if ($checkoutPhone === '' && $user) {
 			$userAddress = Addresses::where('id', $user->default_address_id)
 				->where('is_deleted', 0)
 				->when($user->id, function ($q) use ($user) {
@@ -4575,6 +4748,10 @@ class ApiController extends Controller
 		}
 
 		$checkoutOtpService = app(CheckoutOtpService::class);
+		$checkoutPhone = $checkoutOtpService->normalizePhone($checkoutPhone);
+		if (!$checkoutPhone) {
+			return response()->json(['status' => 0, 'message' => 'Shipping phone is invalid.'], 200);
+		}
 		$phoneCheck = $checkoutOtpService->phoneCheck($checkoutPhone);
 
 		if ($phoneCheck['otp_bypass_reason'] === 'blocked_customer') {
@@ -4594,8 +4771,28 @@ class ApiController extends Controller
 		}
 
 		if ($isGuestOrder) {
-			$guestAddressId = DB::table('addresses')->insertGetId([
-				'user_id' => null,
+			$guestCustomer = User::where('phone', $checkoutPhone)->first();
+			if (!$guestCustomer) {
+				$guestCustomerId = DB::table('users')->insertGetId([
+					'phone' => $checkoutPhone,
+					'password' => Hash::make(Str::random(40)),
+					'status' => 1,
+					'created_at' => now(),
+					'updated_at' => now(),
+				]);
+				$guestCustomer = User::find($guestCustomerId);
+			}
+
+			if (!$guestCustomer) {
+				return response()->json(['status' => 0, 'message' => 'Unable to establish customer identity.'], 200);
+			}
+
+			$guestAddressId = $request->guest_address_id
+				? DB::table('addresses')->where('id', (int) $request->guest_address_id)->where('user_id', $guestCustomer->id)->where('is_deleted', 0)->value('id')
+				: null;
+			if (!$guestAddressId) {
+				$guestAddressId = DB::table('addresses')->insertGetId([
+				'user_id' => $guestCustomer->id,
 				'shipping_first_name' => $request->guest_shipping_first_name,
 				'shipping_last_name' => null,
 				'shipping_phone' => $request->guest_shipping_phone,
@@ -4609,13 +4806,12 @@ class ApiController extends Controller
 				'is_deleted' => 0,
 				'created_at' => now(),
 				'updated_at' => now(),
-			]);
+				]);
+			}
 
-			$user = (object) [
-				'id' => null,
-				'default_address_id' => $guestAddressId,
-				'default_pickpoint_address' => 0,
-			];
+			$guestCustomer->default_address_id = $guestAddressId;
+			$guestCustomer->save();
+			$user = $guestCustomer;
 		}
 
 		$pickpoint =  Pickpoints::where('id', $user->default_address_id)->first();
@@ -4694,11 +4890,11 @@ class ApiController extends Controller
 			}
 
 			$user_id = $user->id;
-			if ($user_id) {
-				$cartData = DB::table('carts')->where('user_id', $user_id)->get();
-			} else {
+			if ($isGuestOrder) {
 				$session_key = $request->session_key;
 				$cartData = DB::table('carts')->where('session_key', $session_key)->get();
+			} else {
+				$cartData = DB::table('carts')->where('user_id', $user_id)->get();
 			}
 			if ($cartData->isEmpty()) {
 				$data['status'] = 0;
@@ -4965,7 +5161,11 @@ class ApiController extends Controller
 			$orderData['coupon_amount'] = $coupon_amount ?? 0;
 			$orderData['voucher_code'] = $voucher_code ?? null;
 			$orderData['voucher_amount'] = $voucher_amount ?? 0;
-			$orderData['discount_amount'] = $orderData['coupon_amount'] + $orderData['voucher_amount'];
+			$checkoutOffer = $this->checkoutOfferSettings();
+			$checkoutOfferAmount = $checkoutOffer['enabled']
+				? round($sub_total * $checkoutOffer['percent'] / 100, 2)
+				: 0;
+			$orderData['discount_amount'] = $orderData['coupon_amount'] + $orderData['voucher_amount'] + $checkoutOfferAmount;
 			$orderData['payment_method'] = $request->payment_method;
 			$orderData['status'] = 1;
 			$orderData['vat'] = $vat;
@@ -5002,7 +5202,7 @@ class ApiController extends Controller
 			foreach ($cartData as $single_item) {
 				$product = \Helper::get_product_by_id($single_item->product_id);
 
-				$detailsData['user_id'] = $single_item->user_id;
+				$detailsData['user_id'] = $user_id;
 				$detailsData['order_id'] = $order_id;
 				$detailsData['product_id'] = $single_item->product_id;
 
@@ -5081,6 +5281,13 @@ class ApiController extends Controller
 			}
 
 
+			$freeDeliveryEligible = $sub_total >= self::CUSTOMER_CHECKOUT_FREE_DELIVERY_THRESHOLD;
+			if ($freeDeliveryEligible) {
+				$shipping_cost = 0;
+				$totalShippingCost = 0;
+				$shipping_cost_grocery = 0;
+			}
+
 			if ($user->default_pickpoint_address == 1) { //Pick Point Order
 				$pData = [];
 				$pData['grocery_shipping_cost'] = 0;
@@ -5094,8 +5301,11 @@ class ApiController extends Controller
 						$pData['shipping_cost'] =  ($sub_total * $pickpoint->discount) / 100;
 					}
 				}
+				if ($freeDeliveryEligible) {
+					$pData['shipping_cost'] = 0;
+				}
 
-				$total_amount = ($sub_total + $pData['shipping_cost']+$vat) - ($coupon_amount + $orderData['voucher_amount']);
+				$total_amount = ($sub_total + $pData['shipping_cost']+$vat) - ($coupon_amount + $orderData['voucher_amount'] + $checkoutOfferAmount);
 
 				$pData['total_amount'] = $total_amount;
 				$pData['paid_amount'] = 0;
@@ -5103,7 +5313,7 @@ class ApiController extends Controller
 
 				DB::table('orders')->where('id', $order_id)->update($pData);
 			} else {
-				$total_amount = ($sub_total + $totalShippingCost + $shipping_cost_grocery + $packaging_cost + $security_charge+$vat) - ($coupon_amount + $orderData['voucher_amount']);
+				$total_amount = ($sub_total + $totalShippingCost + $shipping_cost_grocery + $packaging_cost + $security_charge+$vat) - ($coupon_amount + $orderData['voucher_amount'] + $checkoutOfferAmount);
 				DB::table('orders')->where('id', $order_id)->update([
 					'shipping_cost' => $totalShippingCost + $shipping_cost_grocery,
 					'grocery_shipping_cost' => $shipping_cost_grocery,
@@ -5128,11 +5338,11 @@ class ApiController extends Controller
 			}
 
 		//Delete Cart Data as part of the authoritative order transaction.
-		if ($user_id) {
-			$deletedCartRows = DB::table('carts')->where('user_id', $user_id)->delete();
-		} else {
+		if ($isGuestOrder) {
 			$session_key = $request->session_key;
 			$deletedCartRows = DB::table('carts')->where('session_key', $session_key)->delete();
+		} else {
+			$deletedCartRows = DB::table('carts')->where('user_id', $user_id)->delete();
 		}
 		if ($deletedCartRows !== $cartData->count()) {
 			throw new \RuntimeException('Unable to clear the complete customer cart.');
@@ -5143,6 +5353,9 @@ class ApiController extends Controller
 				\Log::error('Customer order transaction failed.', ['user_id' => $user_id, 'error' => $exception->getMessage()]);
 				$data['status'] = 0;
 				$data['message'] = 'Unable to place the order. No changes were saved.';
+				if (app()->environment('local', 'testing')) {
+					$data['debug_error'] = $exception->getMessage();
+				}
 				return response()->json($data, 200);
 			}
 
@@ -5155,11 +5368,18 @@ class ApiController extends Controller
 			}
 			$in['total'] = $total_amount;
 			$in['sub_total'] = $sub_total;
-			$in['discount_amount'] = $discount_amount;
+			$in['discount_amount'] = $orderData['discount_amount'];
 			$in['coupon_amount'] = $coupon_amount;
+			$in['checkout_offer_discount_amount'] = $checkoutOfferAmount;
+			$in['checkout_offer_discount_percent'] = $checkoutOffer['percent'];
 			$in['order_id'] = $order_id;
 			$in['products'] = $invoice;
 			$in['shipping_cost'] = $shipping_cost;
+			$in['free_delivery_eligible'] = $freeDeliveryEligible;
+			$in['free_delivery_threshold'] = self::CUSTOMER_CHECKOUT_FREE_DELIVERY_THRESHOLD;
+			if ($isGuestOrder) {
+				$in['guest_order_reference'] = $this->guestOrderReference($order_id, $orderData['payment_id'], $user_id);
+			}
 
 			$data['status'] = 1;
 			$data['message'] = 'Order placed successfully.';
@@ -5171,11 +5391,13 @@ class ApiController extends Controller
 
 			if ($request->server('HTTP_HOST') != '127.0.0.1:8000') {
 				if ($email = $user->email) {
-					try {
-						\Helper::sendEmail($email, 'Order Placed', $order, 'invoice');
-					} catch (\Throwable $exception) {
-						\Log::warning('Order confirmation email failed.', ['order_id' => $order_id]);
-					}
+					app()->terminating(function () use ($email, $order, $order_id) {
+						try {
+							\Helper::sendEmail($email, 'Order Placed', $order, 'invoice');
+						} catch (\Throwable $exception) {
+							\Log::warning('Order confirmation email failed.', ['order_id' => $order_id, 'error' => $exception->getMessage()]);
+						}
+					});
 				}
 			}
 
@@ -5197,21 +5419,30 @@ class ApiController extends Controller
 
 			foreach ($sellers_id_for_order as $key => $val) {
 				$seller = Admins::find($val);
-				try {
-					\Helper::sendPushNotification($val, 2, 'Order Placed', 'Order placed successfully!', json_encode($message));
-				} catch (\Throwable $exception) {
-					\Log::warning('Seller order push notification failed.', ['order_id' => $order_id, 'seller_id' => $val]);
-				}
 				if (!$seller) {
 					\Log::warning('Seller order SMS skipped because seller was not found.', ['order_id' => $order_id, 'seller_id' => $val]);
 					continue;
 				}
-				\Helper::sendSmsNonMusking($seller->phone, 'একটি নতুন অর্ডার সফলভাবে স্থাপন করা হয়েছে! Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+				app()->terminating(function () use ($val, $message, $order_id, $seller) {
+					try {
+						\Helper::sendPushNotification($val, 2, 'Order Placed', 'Order placed successfully!', json_encode($message));
+						\Helper::sendSmsNonMusking($seller->phone, 'একটি নতুন অর্ডার সফলভাবে স্থাপন করা হয়েছে! Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+					} catch (\Throwable $exception) {
+						\Log::warning('Seller order notification failed.', ['order_id' => $order_id, 'seller_id' => $val, 'error' => $exception->getMessage()]);
+					}
+				});
 			}
 
 		// Customer
 		if ($user->phone) {
-			\Helper::sendSmsNonMusking($user->phone, 'আপনার অর্ডার সফলভাবে স্থাপন করা হয়েছে! আপনার Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+			$customerPhone = $user->phone;
+			app()->terminating(function () use ($customerPhone, $order_id) {
+				try {
+					\Helper::sendSmsNonMusking($customerPhone, 'আপনার অর্ডার সফলভাবে স্থাপন করা হয়েছে! আপনার Order ID #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+				} catch (\Throwable $exception) {
+					\Log::warning('Customer order SMS failed.', ['order_id' => $order_id, 'error' => $exception->getMessage()]);
+				}
+			});
 		}
 
 			if ($request->payment_method == 'online_payment') {
@@ -5568,17 +5799,32 @@ class ApiController extends Controller
 		}
 	}
 
-	public function getSingleOrder($order_id){
+	public function getSingleOrder(Request $request, $order_id){
 		$user = auth('customer-api')->user();
-		if ($user) {
+		$guestOrderReference = trim((string) $request->query('guest_order_reference', ''));
+		if ($user || $guestOrderReference !== '') {
+			$guestOrder = null;
+			if (!$user) {
+				$candidateOrder = Order::where('id', $order_id)->first();
+				if ($candidateOrder && hash_equals(
+					$this->guestOrderReference($candidateOrder->id, $candidateOrder->payment_id, $candidateOrder->user_id),
+					$guestOrderReference
+				)) {
+					$guestOrder = $candidateOrder;
+				}
+			}
 
-			$order = Order::where('id', $order_id)
-				->where('user_id', $user->id)
+			$order = Order::where('id', $user ? $order_id : ($guestOrder->id ?? 0))
+				->when($user, function ($query) use ($user) {
+					$query->where('user_id', $user->id);
+				})
 				->with('order_details.product', 'order_details.shopinfo')
 				->with('statuses')
-				->with(['address' => function ($query) use ($user) {
-					$query->where('user_id', $user->id);
-				}])
+				->when($user, function ($query) use ($user) {
+					$query->with(['address' => function ($addressQuery) use ($user) {
+						$addressQuery->where('user_id', $user->id);
+					}]);
+				})
 				->with('auto_renewal')
 				->first();
 

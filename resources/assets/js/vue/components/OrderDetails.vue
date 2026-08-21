@@ -1,7 +1,95 @@
 <template>
 <div>
 
-<section id="profile-page">
+<section v-if="guestOrderReference" class="order-success-page">
+    <div class="container">
+        <div v-if="orderLoadError" class="alert alert-danger order-success-alert" role="alert">{{ orderLoadError }}</div>
+        <template v-if="single_order">
+            <div class="order-success-hero">
+                <div class="order-success-highlight">
+                    <div class="order-success-copy">
+                        <span class="order-success-check"><i class="fa fa-check" aria-hidden="true"></i></span>
+                        <div>
+                            <h1>আপনার অর্ডার সফলভাবে স্থাপন হয়েছে</h1>
+                            <p>শীঘ্রই আমাদের প্রতিনিধি অর্ডার কনফার্ম করতে আপনার সাথে যোগাযোগ করবেন, ইন শা আল্লাহ।</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="order-success-assurance">
+                    <button type="button" class="btn order-print-button" @click.prevent="printInvoice()"><i class="fa fa-print"></i> Print Invoice</button>
+                </div>
+                <div class="order-facts">
+                    <div><small>Order Number</small><strong>MS{{single_order.created_at|prefix_year}}{{ single_order.id }}</strong></div>
+                    <div><small>Date/Time</small><strong>{{ single_order.created_at | formatDate }}</strong></div>
+                    <div><small>Payment Method</small><strong>{{ paymentMethodLabel }}</strong></div>
+                    <div><small>Order Type</small><strong>Customer Order</strong></div>
+                </div>
+            </div>
+
+            <div class="row order-success-grid">
+                <div class="col-12 col-lg-6">
+                    <section class="order-success-card">
+                        <h2>Order Details</h2>
+                        <dl>
+                            <div><dt>Name</dt><dd>{{ address.shipping_first_name || '—' }}</dd></div>
+                            <div><dt>Phone</dt><dd>{{ address.shipping_phone || '—' }}</dd></div>
+                            <div><dt>Address</dt><dd>{{ formattedShippingAddress || '—' }}</dd></div>
+                            <div v-if="single_order.note"><dt>Note</dt><dd>{{ single_order.note }}</dd></div>
+                        </dl>
+                    </section>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <section class="order-success-card">
+                        <h2>Shipping Information</h2>
+                        <dl>
+                            <div><dt>Delivery Area</dt><dd>{{ deliveryAreaLabel }}</dd></div>
+                            <div><dt>Expected Delivery</dt><dd>{{ expectedDeliveryLabel }}</dd></div>
+                            <div><dt>Courier</dt><dd>Courier information will appear here once assigned.</dd></div>
+                        </dl>
+                    </section>
+                </div>
+            </div>
+
+            <section class="order-success-card order-products-card">
+                <h2>Products</h2>
+                <div class="order-products-table">
+                    <div class="order-product-row order-product-head">
+                        <span>Product</span><span>Price</span><span>Qty</span><span>Shipping Cost</span><span>Packaging Cost</span><span>Security Charge</span><span>Subtotal</span><span>Shipping Status</span>
+                    </div>
+                    <div v-for="item in order_products" :key="item.id" class="order-product-row">
+                        <div class="order-product-name"><img @error="imageLoadError" :src="baseurl+'/'+(item.product && item.product.default_image)" alt=""><span>{{ item.product && item.product.title }}</span></div>
+                        <span data-label="Price">BDT {{ money(item.price) }}</span>
+                        <span data-label="Qty">{{ item.product_qty }}</span>
+                        <span data-label="Shipping">BDT {{ money(item.shipping_cost) }}</span>
+                        <span data-label="Packaging">BDT {{ money(item.packaging_cost) }}</span>
+                        <span data-label="Security">BDT {{ money(item.security_charge) }}</span>
+                        <span data-label="Subtotal">BDT {{ money(Number(item.price) * Number(item.product_qty)) }}</span>
+                        <span data-label="Status">{{ orderStatusTitle(item) }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="row order-success-bottom">
+                <div class="col-12 col-lg-6 ml-auto">
+                    <section class="order-success-card order-summary-card">
+                        <h2>Order Summary</h2>
+                        <ul>
+                            <li><span>Subtotal</span><strong>BDT {{ money(single_order.global_subtotal) }}</strong></li>
+                            <li><span>Shipping Cost</span><strong>{{ Number(single_order.shipping_cost) === 0 ? 'FREE' : 'BDT '+money(single_order.shipping_cost) }}</strong></li>
+                            <li v-if="Number(single_order.total_packaging_cost) > 0"><span>Packaging Cost</span><strong>BDT {{ money(single_order.total_packaging_cost) }}</strong></li>
+                            <li v-if="Number(single_order.total_security_charge) > 0"><span>Security Charge</span><strong>BDT {{ money(single_order.total_security_charge) }}</strong></li>
+                            <li v-if="Number(single_order.discount_amount) > 0"><span>Other Discount</span><strong>- BDT {{ money(single_order.discount_amount) }}</strong></li>
+                            <li class="order-summary-total"><span>Total Payable</span><strong>BDT {{ money(single_order.total_amount) }}</strong></li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+            <div class="order-success-mobile-print"><button type="button" class="btn order-print-button" @click.prevent="printInvoice()"><i class="fa fa-print"></i> Print Invoice</button></div>
+        </template>
+    </div>
+</section>
+
+<section v-else id="profile-page">
     <div class="container">
 	<div class="col-md-12 account_wrapper bg_white">
 		<div class="row profile">
@@ -548,6 +636,24 @@ export default {
         pagination
 	},
     computed:{
+        guestOrderReference(){
+            return String(this.$route.query.guest_order_reference || '').trim();
+        },
+        paymentMethodLabel(){
+            return this.single_order && this.single_order.payment_method === 'cash_on_delivery'
+                ? 'Cash On Delivery'
+                : 'Online Payment';
+        },
+        deliveryAreaLabel(){
+            const district = this.address && (this.address.district_title || (this.address.district && this.address.district.title));
+            return district || '—';
+        },
+        isInsideDhaka(){
+            return String(this.deliveryAreaLabel).toLowerCase().indexOf('dhaka') !== -1;
+        },
+        expectedDeliveryLabel(){
+            return this.isInsideDhaka ? 'Within 1-2 Days' : '2-3 Days';
+        },
         formattedShippingAddress(){
             if(!this.address){
                 return '';
@@ -572,6 +678,15 @@ export default {
         }
     },
 	methods:{
+
+        money(value){
+            const amount = Number(value || 0);
+            return Number.isInteger(amount) ? amount : amount.toFixed(2);
+        },
+        orderStatusTitle(item){
+            const status = this.statuses.find(entry => Number(entry.id) === Number(item.status));
+            return status ? status.title : 'Processing';
+        },
 
         handleFilesUpload(e){
             const file = e.target.files
@@ -783,7 +898,10 @@ export default {
 			  }
 			}
             let order_id = this.$route.params.id;
-            axios.get(this.$baseUrl + "/api/v1/get-single-order/"+order_id, axiosConfig).then((response) => {
+            axios.get(this.$baseUrl + "/api/v1/get-single-order/"+order_id, {
+                ...axiosConfig,
+                params: this.guestOrderReference ? {guest_order_reference: this.guestOrderReference} : {}
+            }).then((response) => {
                 if (response.data.status == 0) {
                     this.single_order = '';
                     this.address = '';
@@ -905,10 +1023,89 @@ export default {
         this.scrollToTop();
         this.date_time();
         this.site_information();
-        this.getUserDetails();
+        if(!this.guestOrderReference){
+            this.getUserDetails();
+        }
         this.baseurl = this.$baseUrl;
         this.load_single_order();
         document.title = "MabiY Shop | My Order Details";  
 	}
 }
 </script>
+
+<style scoped>
+    .order-success-page { background: #f5f8f8; padding: 34px 0 96px; color: #223333; }
+.order-success-alert { max-width: 760px; margin: 0 auto; }
+.order-success-hero,
+.order-success-card { background: #fff; border: 1px solid #dce8e7; border-radius: 16px; box-shadow: 0 8px 24px rgba(25, 72, 69, .06); }
+.order-success-hero { padding: 28px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 22px; }
+.order-success-highlight { width: 100%; padding: 22px; border: 1px solid #bfe3dc; border-radius: 14px; background: #f0faf7; }
+.order-success-copy { display: flex; align-items: center; gap: 18px; }
+.order-success-copy h1 { margin: 0 0 7px; font-size: 28px; font-weight: 700; color: #0f5e54; }
+.order-success-copy p { margin: 0; color: #4a6b67; }
+.order-success-check { width: 62px; height: 62px; flex: 0 0 62px; display: grid; place-items: center; border-radius: 50%; background: #d6f2ec; color: #0b8a7a; font-size: 28px; }
+.order-success-assurance { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 10px; color: #24766d; }
+.order-print-button { background: #173e3b; color: #fff; border-radius: 9px; padding: 10px 18px; }
+.order-print-button:hover { color: #fff; background: #0f302e; }
+.order-facts { width: 100%; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding-top: 20px; border-top: 1px solid #e8efef; }
+.order-facts div { min-width: 0; padding: 12px 14px; background: #f7faf9; border-radius: 10px; }
+.order-facts small, .order-facts strong { display: block; }
+.order-facts small { color: #788988; margin-bottom: 4px; }
+.order-facts strong { overflow-wrap: anywhere; color: #253b39; }
+.order-success-grid { margin-top: 22px; }
+.order-success-grid > div { display: flex; margin-bottom: 22px; }
+.order-success-card { width: 100%; padding: 22px; }
+.order-success-card h2 { margin: 0 0 17px; font-size: 20px; font-weight: 700; color: #173e3b; }
+.order-success-card dl { margin: 0; }
+.order-success-card dl > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 14px; padding: 9px 0; border-bottom: 1px solid #edf2f1; }
+.order-success-card dl > div:last-child { border-bottom: 0; }
+.order-success-card dt { color: #71817f; font-weight: 500; }
+.order-success-card dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.order-products-card { margin-bottom: 22px; overflow: hidden; }
+.order-products-table { overflow: hidden; border: 1px solid #e7eeee; border-radius: 11px; }
+.order-product-row { display: grid; grid-template-columns: 2fr repeat(7, minmax(80px, 1fr)); align-items: center; }
+.order-product-row > * { min-width: 0; padding: 12px 9px; overflow-wrap: anywhere; }
+.order-product-row + .order-product-row { border-top: 1px solid #e8eeee; }
+.order-product-head { background: #f1f7f6; color: #536866; font-size: 12px; font-weight: 700; }
+.order-product-name { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.order-product-name img { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 8px; object-fit: cover; }
+.order-success-bottom { align-items: flex-start; }
+.order-summary-card ul { margin: 0; padding: 0; list-style: none; }
+.order-summary-card li { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; }
+.order-summary-total { margin-top: 9px; padding-top: 16px !important; border-top: 1px solid #dce8e7; color: #0f756a; font-size: 19px; }
+.order-success-mobile-print { display: none; }
+@media (max-width: 991px) {
+    .order-success-assurance { align-items: flex-start; }
+    .order-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .order-products-table { border: 0; overflow: visible; }
+    .order-product-head { display: none; }
+    .order-product-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; border: 1px solid #e4eceb; border-radius: 12px; }
+    .order-product-row + .order-product-row { margin-top: 12px; border-top: 1px solid #e4eceb; }
+    .order-product-name { grid-column: 1 / -1; padding-bottom: 12px; }
+    .order-product-row > span { display: flex; flex-direction: column; gap: 2px; }
+    .order-product-row > span:before { content: attr(data-label); color: #7a8987; font-size: 11px; }
+}
+@media (max-width: 575px) {
+    .order-success-page { padding: 72px 0 104px; overflow-x: hidden; }
+    .order-success-hero, .order-success-card { border-radius: 12px; }
+    .order-success-hero { padding: 18px; }
+    .order-success-highlight { padding: 16px; border-radius: 12px; }
+    .order-success-copy { align-items: flex-start; gap: 12px; }
+    .order-success-check { width: 48px; height: 48px; flex-basis: 48px; font-size: 21px; }
+    .order-success-copy h1 { font-size: 21px; }
+    .order-success-assurance .order-print-button { display: none; }
+    .order-facts { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .order-facts div { padding: 10px; }
+    .order-success-card { padding: 17px; }
+    .order-success-card dl > div { grid-template-columns: 105px minmax(0, 1fr); gap: 9px; }
+    .order-products-card { padding-left: 12px; padding-right: 12px; }
+    .order-product-head { display: none; }
+    .order-product-row { grid-template-columns: 1fr 1fr; padding: 8px; gap: 8px; }
+    .order-product-name { grid-column: 1 / -1; padding-bottom: 8px; gap: 8px; }
+    .order-product-name img { width: 40px; height: 40px; flex: 0 0 40px; }
+    .order-product-row > span { display: flex; flex-direction: column; gap: 1px; }
+    .order-product-row > span:before { font-size: 10px; }
+    .order-success-mobile-print { display: block; margin-top: 20px; }
+    .order-success-mobile-print .order-print-button { width: 100%; }
+}
+</style>

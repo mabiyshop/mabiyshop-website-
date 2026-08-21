@@ -315,6 +315,44 @@ $pages = \DB::table('pages')
 </div>
 <!-- Partil Payment End -->
 
+<p class="content_title">Checkout Offer</p>
+<div class="form-group row">
+    <label class="col-sm-3 col-form-label">Enable Offer</label>
+    <div class="col-sm-9">
+        <div class="form-check form-check-flat">
+            <label class="form-check-label">
+                <input type="hidden" name="checkout_offer_enabled" value="0">
+                <input name="checkout_offer_enabled" type="checkbox" class="form-check-input" value="1"
+                    @if (Helper::getsettings('checkout_offer_enabled') == 1) checked @endif>Enabled<i class="input-helper"></i>
+            </label>
+        </div>
+    </div>
+</div>
+<div class="form-group row">
+    <label class="col-sm-3 col-form-label">Discount Percentage</label>
+    <div class="col-sm-9">
+        <div class="input-group">
+            <input type="number" min="0" max="100" step="0.01" name="checkout_offer_discount_percent" class="form-control"
+                value="{{ Helper::getSettings('checkout_offer_discount_percent') ?? 0 }}">
+            <div class="input-group-append"><span class="input-group-text">%</span></div>
+        </div>
+    </div>
+</div>
+<div class="form-group row">
+    <label class="col-sm-3 col-form-label">Offer Message</label>
+    <div class="col-sm-9">
+        <input type="text" name="checkout_offer_message" class="form-control"
+            value="{{ Helper::getSettings('checkout_offer_message') ?: 'অফার চলছে — আপনার প্রয়োজন হলে এখনই কনফার্ম করুন' }}">
+    </div>
+</div>
+<div class="form-group row">
+    <label class="col-sm-3 col-form-label">Countdown Minutes</label>
+    <div class="col-sm-9">
+        <input type="number" min="1" name="checkout_offer_countdown_minutes" class="form-control"
+            value="{{ Helper::getSettings('checkout_offer_countdown_minutes') ?: 60 }}">
+    </div>
+</div>
+
 <!-- Partil Payment start -->
 <p class="content_title">Shipping Options</p>
 <div class="form-group row">
