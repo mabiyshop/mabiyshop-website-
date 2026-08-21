@@ -5176,6 +5176,20 @@ class ApiController extends Controller
 				: null;
 			$orderData['payment_id'] = uniqid();
 			$orderData['ip_address'] = request()->ip();
+			$clientUserAgent = $request->userAgent();
+			$fbp = $request->input('fbp');
+			$fbc = $request->input('fbc');
+			if (!is_string($fbp) || trim($fbp) === '') {
+				$fbp = $request->cookie('_fbp');
+			}
+			if (!is_string($fbc) || trim($fbc) === '') {
+				$fbc = $request->cookie('_fbc');
+			}
+			$orderData['client_user_agent'] = is_string($clientUserAgent) && trim($clientUserAgent) !== ''
+				? substr(trim($clientUserAgent), 0, 2000)
+				: null;
+			$orderData['fbp'] = is_string($fbp) && trim($fbp) !== '' ? substr(trim($fbp), 0, 255) : null;
+			$orderData['fbc'] = is_string($fbc) && trim($fbc) !== '' ? substr(trim($fbc), 0, 255) : null;
 			$orderData['note']    = $request->note;
 			$orderData['total_packaging_cost']  = $packaging_cost;
 			$orderData['total_security_charge'] = $security_charge;

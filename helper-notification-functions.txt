@@ -1,0 +1,71 @@
+			  CURLOPT_CUSTOMREQUEST => 'POST',
+			  CURLOPT_POSTFIELDS => array('api_key' => $api_key,'type' => 'text','contacts' => $to,'senderid' => $sender_id,'msg' => $messageBody)
+			));
+
+			$response = curl_exec($curl);
+
+			curl_close($curl);
+			return $response;
+		}
+	}
+
+
+	public static function sendEmail($email, $subject, $data, $template = 'default')
+	{
+
+		Mail::send('emails.' . $template, ['data' => $data], function ($message) use ($email, $subject) {
+			$message->from(env('MAIL_FROM_ADDRESS'), $subject);
+			$message->to($email)->subject($subject);
+		});
+	}
+
+
+
+	public static function sendPushNotification($user_id, $user_type, $title, $notification, $message, $image = null, $link = null)
+	{
+
+		if ($user_type == 1) { //Customer
+			$user = DB::table('users')->where('id', $user_id)->where('status', 1)->where('is_deleted', 0)->first();
+		} else { //Seller
+			$user = DB::table('admins')->where('id', $user_id)->where('status', 1)->first();
+		}
+
+		if ($user) {
+			$allTokens = [$user->web_device_token, $user->device_token];
+
+			foreach ($allTokens as $device_token) {
+				if ($user) {
+					$data = [
+						'to' => $device_token,
+						'content_available' => true,
+						"sticky" => true,
+						'notification' => [
+							'title' => $title,
+							'body' => $notification,
+							'style' => 'picture',
+							"image" => $image,
+							"click_action" => $link ?? ''
+						],
+						'data' => [
+							'title' => $title,
+							'body' => $message,
+							'status' => 'done',
+							"image" => $image,
+							"click_action" => $link ?? ''
+						],
+
+					];
+
+					$curl = curl_init();
+					curl_setopt_array($curl, array(
+						CURLOPT_URL => "https://fcm.googleapis.com/fcm/send",
+						CURLOPT_RETURNTRANSFER => true,
+						CURLOPT_ENCODING => "",
+						CURLOPT_MAXREDIRS => 10,
+						CURLOPT_CONNECTTIMEOUT => 5,
+						CURLOPT_TIMEOUT => 10,
+						CURLOPT_FOLLOWLOCATION => true,
+						CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+						CURLOPT_CUSTOMREQUEST => "POST",
+						CURLOPT_POSTFIELDS => json_encode($data),
+						CURLOPT_HTTPHEADER => array(

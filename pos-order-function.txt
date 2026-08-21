@@ -1,0 +1,486 @@
+    public function order_function(Request $request){
+        $user = User::find($request->customer);
+        $pickpoint =  Pickpoints::where('id', $request->address)->first();
+        if ($user) {
+
+            $user_id = $user->id;
+			$cartData = DB::table('carts')->where('user_id', $user_id)->get();
+			if ($cartData->isEmpty()) {
+				$data['status'] = 0;
+				$data['message'] = 'Product not found in your cart.';
+				return response()->json($data, 200);
+			}
+
+			$selectedMethods = [];
+			foreach ((array) json_decode($request->shipping_method, true) as $selection) {
+				if (is_array($selection) && isset($selection[0], $selection[1])) {
+					$selectedMethods[$selection[1]] = $selection[0];
+				}
+			}
+			$shippingResult = $this->calculatePosShipping($user, $cartData, $request->address, $request->address_type, $selectedMethods);
+			if ($shippingResult['status'] !== 1) {
+				return response()->json(['status' => 0, 'message' => $shippingResult['message']], 200);
+			}
+
+            $sub_total = 0;
+			$vat = 0;
+			if (!is_numeric($request->discount) || (float) $request->discount < 0) {
+				return response()->json(['status' => 0, 'message' => 'Please enter a valid non-negative discount.'], 200);
+			}
+			$discount_amount = (float) $request->discount;
+			$coupon_amount =  0;
+			$shipping_cost = (float) $shippingResult['shipping_cost'];
+			$packaging_cost = 0;
+			$security_charge = 0;
+			$aff_commission_amount = 0;
+			$productIds = [];
+			$validatedProducts = Product::whereIn('id', $cartData->pluck('product_id')->unique())
+				->where('is_active', 1)->where('is_deleted', 0)->where('product_qc', 1)->get()->keyBy('id');
+			$hasPhysicalDeliveryProduct = false;
+			$sellerIdsForNotification = [];
+
+            foreach ($cartData as $cart) {
+				$sProduct = $validatedProducts->get($cart->product_id);
+				if (!$sProduct) {
+					return response()->json(['status' => 0, 'message' => 'A cart product is no longer available for POS ordering.'], 200);
+				}
+				if (!is_numeric($cart->qty) || (int) $cart->qty < 1 || (int) $cart->qty != $cart->qty || (int) $cart->qty > (int) $sProduct->max_cart_qty) {
+					return response()->json(['status' => 0, 'message' => 'A cart product has an invalid quantity.'], 200);
+				}
+				// POS intentionally permits an administrator-entered unit-price override.
+				if (!is_numeric($cart->price) || (float) $cart->price < 0) {
+					return response()->json(['status' => 0, 'message' => 'A cart product has an invalid manual price.'], 200);
+				}
+				$vat += (($cart->price * $sProduct->vat) / 100) * $cart->qty;
+				$sub_total += $cart->price * $cart->qty;
+				$hasPhysicalDeliveryProduct = $hasPhysicalDeliveryProduct || in_array($cart->product_type, ['simple', 'variable'], true);
+				$sellerIdsForNotification[$cart->seller_id] = $cart->seller_id;
+
+                if ($sProduct->aff_commission_amount) {
+                    $aff_commission_amount += $sProduct->aff_commission_amount * $cart->qty;
+                    $productIds[] = $sProduct->id;
+                }
+
+                if ($cart->product_type == 'simple' || $cart->product_type == 'digital' || $cart->product_type == 'service') {
+					$price = \Helper::price_after_offer($cart->product_id);
+
+					//Validate Price Update
+	
+					// if ($price != $cart->price) {
+					// 	$newDiscount =  \Helper::discount_amount_by_IDS($cart->product_id) * $cart->qty;
+					// 	DB::table('carts')->where('id', $cart->id)->update(['price' => $price, 'discount' => $newDiscount]);
+
+					// 	$data['status'] = 2;
+					// 	$data['message'] = 'Product price has been changed. Please review new price and place order again!';
+					// 	return response()->json($data, 200);
+					// }
+
+					$qty = $cart->product_type === 'simple'
+						? \Helper::simple_product_stock($cart->product_id, $cart->qty)
+						: 1;
+					if ($qty == 1) {
+						$packaging_cost += $cart->packaging_cost * $cart->qty;
+						$security_charge += $cart->security_charge * $cart->qty;
+						// $discount_amount += $discount_amount + $cart->discount;
+					} else {
+						$data['status'] = 0;
+						$data['message'] = 'Product is out of stock.';
+						return response()->json($data, 200);
+					}
+				}
+
+				if ($cart->product_type == 'variable') {
+					$options = json_decode($cart->variable_options);
+					if (!$cart->variable_options || json_last_error() !== JSON_ERROR_NONE || !$options) {
+						return response()->json(['status' => 0, 'message' => 'A selected product variant is invalid or no longer available.'], 200);
+					}
+					$availableOptions = \Helper::variable_product_stock($cart->product_id, $cart->qty, $options);
+						
+					if ($availableOptions) {
+							$price = \Helper::price_after_offer($cart->product_id) + $availableOptions['totalAdditional'];
+							//Validate Price Update
+							// if ($price != $cart->price) {
+							// 	$newDiscount =  \Helper::discount_amount_by_IDS($cart->product_id) * $cart->qty;
+							// 	DB::table('carts')->where('id', $cart->id)->update(['price' => $price, 'discount' => $newDiscount]);
+							// 	$data['status'] = 2;
+							// 	$data['message'] = 'Product price has been changed. Please review new price and place order again!';
+							// 	return response()->json($data, 200);
+							// }
+					} else {
+						return response()->json(['status' => 0, 'message' => 'A selected product variant is out of stock or no longer available.'], 200);
+					}
+				}
+            }
+
+			if ($discount_amount > $sub_total) {
+				return response()->json(['status' => 0, 'message' => 'Discount cannot exceed the authoritative subtotal.'], 200);
+			}
+			$previousDue = max(0, (float) ($user->balance ?? 0));
+			$total_amount = ($sub_total + $shipping_cost + $packaging_cost + $security_charge + $vat + $previousDue) - $discount_amount;
+			if (!is_numeric($request->paid_amount) || (float) $request->paid_amount < 0) {
+				return response()->json(['status' => 0, 'message' => 'Please enter a valid non-negative paid amount.'], 200);
+			}
+			$paidAmount = min((float) $request->paid_amount, $total_amount);
+			$allowedPaymentMethods = ['cash', 'partial_payment', 'cash_on_delivery', 'mfs_card'];
+			if (!in_array($request->payment_method, $allowedPaymentMethods, true)) {
+				return response()->json(['status' => 0, 'message' => 'The selected payment method is invalid.'], 200);
+			}
+			$paymentAsset = null;
+			if (isset($request->paid_by) && $paidAmount > 0) {
+				$paymentAsset = CurrentAsset::find($request->paid_by);
+				if (!$paymentAsset) {
+					return response()->json(['status' => 0, 'message' => 'The selected payment account is invalid.'], 200);
+				}
+			}
+
+            $orderData['total_amount'] = $total_amount;
+			$orderData['paid_amount'] = $paidAmount;
+			$orderData['is_partial_payment'] = ($paidAmount > 0 && $paidAmount < $total_amount) ? 1 : 0;
+			$orderData['order_from'] = $request->order_from ?? 'pos';
+			$orderData['coupon_code'] = $coupon_code ?? null;
+			$orderData['coupon_amount'] = $coupon_amount ?? 0;
+			$orderData['voucher_code'] = $voucher_code ?? null;
+			$orderData['voucher_amount'] = $voucher_amount ?? 0;
+			$orderData['discount_amount'] = $discount_amount;
+			$orderData['payment_method'] = $request->payment_method ?? 'cash_on_delivery';
+			$orderData['pay_by'] = $paidAmount > 0 ? $request->paid_by : null;
+			$directCompletionAllowed = $request->address_type === 'pickpoint' || !$hasPhysicalDeliveryProduct;
+            if ($directCompletionAllowed && $request->completed === 'yes') {
+                $orderData['status'] = 6;
+            }else{
+                $orderData['status'] = 1;
+            }
+
+			$orderData['vat'] = $vat;
+			$orderData['user_id'] = $user_id;
+			$orderData['address_id'] = $request->address;
+			$orderData['shipping_address_snapshot'] = $request->address_type !== 'pickpoint'
+				? json_encode(Order::shippingAddressSnapshot($shippingResult['location']['address']), JSON_UNESCAPED_UNICODE)
+				: null;
+			$orderData['is_pickpoint'] = ($request->address_type == 'pickpoint') ? 1 : 0;
+			$orderData['payment_id'] = uniqid();
+			$orderData['ip_address'] = request()->ip();
+			$orderData['note']    = $request->order_note;
+			$orderData['shipping_cost']    = $shipping_cost;
+			$orderData['total_packaging_cost']  = $packaging_cost;
+			$orderData['total_security_charge'] = $security_charge;
+			DB::beginTransaction();
+			try {
+			$order_id = DB::table('orders')->insertGetId($orderData);
+
+            
+            //Insert Order details
+			foreach ($cartData as $single_item) {
+				$product = \Helper::get_product_by_id($single_item->product_id);
+				$detailsData['user_id'] = $single_item->user_id;
+				$detailsData['order_id'] = $order_id;
+				$detailsData['product_id'] = $single_item->product_id;
+				$detailsData['product_sku'] = ($product->sku) ? $product->sku : $single_item->variable_sku;
+				$detailsData['vat'] = ($single_item->price*$product->vat)/100 * $single_item->qty;
+				$detailsData['product_qty'] = $single_item->qty;
+				$detailsData['base_price'] = $single_item->base_price ?? 0.00;
+				$detailsData['price'] = $single_item->price ?? 0.00;
+				$detailsData['discount'] = $single_item->discount ?? 0.00;
+				$detailsData['is_promotion'] = $product->is_promotion;
+				$detailsData['loyalty_point'] = $product->loyalty_point ?? 0;
+                $detailsData['shipping_method'] = 'pick_point';
+				$detailsData['shipping_cost'] = $shipping_cost;
+				$detailsData['product_options'] = $single_item->variable_options;
+				$detailsData['seller_id'] = $product->seller_id ?? null;
+				$orderData['payment_method'] = $request->payment_method;
+                $detailsData['packaging_cost'] = $single_item->packaging_cost ?? 0;
+                $detailsData['security_charge'] = $single_item->security_charge ?? 0;
+				if ($directCompletionAllowed && $request->completed === 'yes') {
+                    $detailsData['status'] = 10;
+                }else{
+                    $detailsData['status'] = 1;
+                }
+				if ($orderDetailsId = DB::table('order_details')->insertGetId($detailsData)) {
+					if (in_array($single_item->product_type, ['simple', 'variable'], true)) {
+						\Helper::update_product_quantity($single_item->product_id, $single_item->qty, $single_item->variable_options, 'subtraction');
+                    }
+
+					//Set Seller Commission
+					\Helper::setSellerBalance($orderDetailsId);
+				} else {
+					throw new \RuntimeException('Unable to insert POS order details.');
+				}
+			}
+
+            // if customer pay 
+			if($paymentAsset && $paidAmount > 0){
+				$asset = $paymentAsset;
+				\Helper::creditAssetBalance($asset->id, $paidAmount);
+				\Helper::accountHistory($asset->branch_id,'','customer_order' , 0, $paidAmount, $paidAmount, $request->paid_by, '', $user_id, Helper::getBusinessBalance($asset->branch_id), $request->invoice_number);
+				$due_amount = $total_amount - $paidAmount;
+				if($due_amount > 0){
+					\Helper::customerBalanceDebit($user_id, $due_amount);
+				}
+			}else{
+				\Helper::customerBalanceDebit($user_id, $total_amount - $paidAmount);
+            }
+
+            //Affiliate Commision
+			if ($user->affiliate_referer && $productIds && $aff_commission_amount > 0) {
+				$affData['user_id'] = $user->affiliate_referer;
+				$affData['buyer_id'] = $user->id;
+				$affData['product_ids'] = implode(',', $productIds);
+				$affData['order_id'] = $order_id;
+				$affData['commission_amount'] = $aff_commission_amount;
+				$affData['note'] = '';
+				$affData['status'] = 1;
+				DB::table('affiliate_history')->insert($affData);
+			}
+
+			DB::table('carts')->where('user_id', $user_id)->delete();
+			DB::commit();
+			} catch (\Throwable $exception) {
+				DB::rollBack();
+				\Log::error('POS order transaction failed.', ['user_id' => $user_id, 'error' => $exception->getMessage()]);
+				return response()->json(['status' => 0, 'message' => 'Unable to place the order. No changes were saved.'], 200);
+			}
+
+			$invoice = DB::table('order_details')->where('order_id', $order_id)->get();
+			foreach ($invoice as $key => $item) {
+				$p = \Helper::get_product_by_id($item->product_id);
+				$item->image = $p->default_image ?? null;
+				$item->title = $p->title ?? null;
+				$item->slug  = $p->slug ?? null;
+			}
+
+			$in['total'] = $total_amount;
+			$in['sub_total'] = $sub_total;
+			$in['discount_amount'] = $discount_amount;
+			$in['coupon_amount'] = $coupon_amount;
+			$in['order_id'] = $order_id;
+			$in['products'] = $invoice;
+			$in['shipping_cost'] = $shipping_cost;
+
+			$data['status'] = 1;
+			$data['message'] = 'Order placed successfully.';
+			$data['invoice'] = $in;
+
+			//Send Email
+			$order = Order::find($order_id);
+
+			if ($request->server('HTTP_HOST') != '127.0.0.1:8000') {
+				if ($email = $user->email) {
+					try {
+						\Helper::sendEmail($email, 'Order Placed', $order, 'invoice');
+					} catch (\Throwable $exception) {
+						\Log::warning('POS order confirmation email failed.', ['order_id' => $order_id]);
+					}
+				}
+			}
+
+			//Send Push notifications
+			//Customer
+			$message = [
+				'order_id' =>  'MS' . date('y', strtotime(Carbon::now())) . $order_id,
+				'type' => 'order',
+				'message' => 'Order placed successfully!',
+			];
+
+			//Seller
+			foreach ($sellerIdsForNotification as $val) {
+				$seller = Admins::find($val);
+				try {
+					\Helper::sendPushNotification($val, 2, 'Order Placed', 'Order placed successfully!', json_encode($message));
+				} catch (\Throwable $exception) {
+					\Log::warning('POS seller push notification failed.', ['order_id' => $order_id, 'seller_id' => $val]);
+				}
+				// \Helper::sendSms($seller->phone, 'একটি নতুন অর্ডার সফলভাবে স্থাপন করা হয়েছে! অর্ডার আইডি হল  #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+			}
+
+			// Customer
+			try {
+				\Helper::sendSms($user->phone, 'অর্ডার সফলভাবে স্থাপন করা হয়েছে! আপনার অর্ডারের জন্য আপনাকে ধন্যবাদ. আপনার অর্ডার আইডি #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+			} catch (\Throwable $exception) {
+				\Log::warning('POS customer SMS failed.', ['order_id' => $order_id, 'user_id' => $user->id]);
+			}
+
+            return response()->json($data, 200);
+
+        }else {
+            $data['status'] = 0;
+            $data['message'] = 'You have to select customer.';
+            return response()->json($data, 200);
+        }
+    }
+
+    public function order_function1(Request $request){
+
+        $user = User::find($request->customer);
+        $pickpoint =  Pickpoints::where('id', $request->address)->first();
+
+        $partial_payment = false;
+		if($request->payment_method == 'online_payment'){
+			$partial_payment = $request->partial_payment;
+		}
+
+        if ($user) {
+			$validForGroceryShipping = false;
+			$userAddress = Addresses::find($user->default_address_id);
+
+			if ($request->address_type != 'pickpoint') {
+				if (!$userAddress) {
+					$data['status'] = 0;
+					$data['message'] = 'You do not have any default shipping address! Please add address first to place an order.';
+					return response()->json($data, 200);
+				} else {
+
+					$grocery_allowed_shipping_location = \DB::table('unions')->where('grocery_shipping_allowed', 1)->pluck('id')->toArray();
+					$shipping_union = $userAddress->shipping_union;
+
+					if (in_array($shipping_union, $grocery_allowed_shipping_location)) {
+						$validForGroceryShipping = true;
+					}
+				}
+			}
+
+
+            if ($request->address_type != 'pickpoint') {
+			    $shipping_methods =  $request->shipping_method;
+			    $keyEnabledShipping = [];
+            
+                foreach ($shipping_methods as $filteredShipping) {
+                    $keyEnabledShipping[$filteredShipping['product_id']] = $filteredShipping['shipping_method'];
+                }
+            }else{
+                $keyEnabledShipping = [];
+            }
+			
+
+			$user_id = $user->id;
+			$cartData = DB::table('carts')->where('user_id', $user_id)->get();
+			if (!$cartData) {
+				$data['status'] = 0;
+				$data['message'] = 'Product not found in your cart.';
+				return response()->json($data, 200);
+			}
+
+			$sub_total = 0;
+			$vat = 0;
+			$discount_amount = 0;
+			$shipping_cost = 0;
+			$packaging_cost = 0;
+			$security_charge = 0;
+			$aff_commission_amount = 0;
+			$productIds = [];
+
+			foreach ($cartData as $cart) {
+				//Update packaging_cost & security_charge
+				$sProduct = Product::select('is_grocery', 'packaging_cost', 'security_charge', 'aff_commission_amount', 'id','vat')->where('id', $cart->product_id)->first();
+				if ($sProduct) {
+
+					$vat +=  (($cart->price*$sProduct->vat)/100) * $cart->qty;
+
+					if ($request->address_type != 'pickpoint') {
+
+						if ($cart->packaging_cost != $sProduct->packaging_cost) {
+							DB::table('carts')->where('id', $cart->id)->update(['packaging_cost' => $sProduct->packaging_cost]);
+							$data['status'] = 2;
+							$data['message'] = 'Product packaging cost has been changed. Please review new packaging cost and place order again!';
+							return response()->json($data, 200);
+						}
+
+						if ($cart->security_charge != $sProduct->security_charge) {
+							DB::table('carts')->where('id', $cart->id)->update(['security_charge' => $sProduct->security_charge]);
+							$data['status'] = 2;
+							$data['message'] = 'Product security charge has been changed. Please review new security charge and place order again!';
+							return response()->json($data, 200);
+						}
+
+						if ($sProduct->is_grocery == 'grocery') {
+							if (!$validForGroceryShipping) {
+								$data['status'] = 0;
+								$data['message'] = 'Sorry! We are not currently delivery grocery product in your area! Please check grocery help center for further details.';
+								return response()->json($data, 200);
+							}
+						}
+					}
+
+					if ($sProduct->aff_commission_amount) {
+						$aff_commission_amount += $sProduct->aff_commission_amount * $cart->qty;
+						$productIds[] = $sProduct->id;
+					}
+				}
+
+
+				if ($cart->product_type == 'simple' || $cart->product_type == 'digital' || $cart->product_type == 'service') {
+					$price = \Helper::price_after_offer($cart->product_id);
+
+					//Validate Price Update
+	
+					if ($price != $cart->price) {
+						$newDiscount =  \Helper::discount_amount_by_IDS($cart->product_id) * $cart->qty;
+						DB::table('carts')->where('id', $cart->id)->update(['price' => $price, 'discount' => $newDiscount]);
+
+						$data['status'] = 2;
+						$data['message'] = 'Product price has been changed. Please review new price and place order again!';
+						return response()->json($data, 200);
+					}
+
+					$qty = \Helper::simple_product_stock($cart->product_id, $cart->qty);
+					if ($qty == 1) {
+						$sub_total += $price * $cart->qty;
+						$packaging_cost += $cart->packaging_cost * $cart->qty;
+						$security_charge += $cart->security_charge * $cart->qty;
+					} else {
+						$data['status'] = 0;
+						$data['message'] = 'Product is out of stock.';
+						return response()->json($data, 200);
+					}
+				}
+
+				if ($cart->product_type == 'variable') {
+
+					if ($cart->variable_options) {
+						$availableOptions = \Helper::variable_product_stock($cart->product_id, $cart->qty, json_decode($cart->variable_options));
+						
+						if ($availableOptions) {
+							$price = \Helper::price_after_offer($cart->product_id) + $availableOptions['totalAdditional'];
+
+
+							//Validate Price Update
+							if ($price != $cart->price) {
+								$newDiscount =  \Helper::discount_amount_by_IDS($cart->product_id) * $cart->qty;
+								DB::table('carts')->where('id', $cart->id)->update(['price' => $price, 'discount' => $newDiscount]);
+								$data['status'] = 2;
+								$data['message'] = 'Product price has been changed. Please review new price and place order again!';
+								return response()->json($data, 200);
+							}
+
+							$sub_total += $price * $cart->qty;
+						}
+					}
+				}
+			}
+
+
+			//Coupon Validation
+			$coupon_amount = 0;
+			if ($request->coupon) {
+				$couponData = \Helper::validateCoupon($request->coupon, $user->id);
+				if ($couponData['status'] == 1) {
+					$coupon_amount = $couponData['amount'];
+					$coupon_code = $couponData['code'];
+				}
+			}
+
+
+			//Voucher Validation for Collection and Activation
+			$collected = CollectedVoucher::where('user_id', $user->id)->where('status', 0)->first();
+			if ($collected) {
+				$voucherForActivation = $collected->voucher_id;
+				$voucherData = \Helper::validateVoucher($voucherForActivation, $user->id);
+				if ($voucherData['status'] == 1) {
+					CollectedVoucher::where('voucher_id', $voucherData['code'])->where('user_id', $user->id)->update(['status' => 1]);
+				}
+			}
+
+
+			//Voucher Validation for Checkout
+			$voucher_amount = 0;
+			if ($request->usedVoucher) {
+				$usedVoucher = $request->usedVoucher;

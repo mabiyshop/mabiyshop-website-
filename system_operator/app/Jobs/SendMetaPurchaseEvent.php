@@ -54,7 +54,17 @@ class SendMetaPurchaseEvent implements ShouldQueue
             $phone = \App\Models\User::where('id', $order->user_id)->value('phone');
         }
 
-        $result = $senderService->send($payload, $phone);
+        $result = $senderService->send($payload, $phone, [
+            'pixel_id' => config('services.meta_capi.pixel_id'),
+            'access_token' => config('services.meta_capi.access_token'),
+            'test_event_code' => config('services.meta_capi.test_event_code'),
+            'dry_run' => filter_var(config('services.meta_capi.dry_run', true), FILTER_VALIDATE_BOOLEAN),
+            'client_ip_address' => $order->ip_address,
+            'client_user_agent' => $order->client_user_agent,
+            'fbp' => $order->fbp,
+            'fbc' => $order->fbc,
+            'email' => $order->email,
+        ]);
 
         $status = ($result['sent'] ?? false) === true ? 'SENT' : 'FAILED';
         $lastError = $result['reason'] ?? ($result['provider_response']['error_type'] ?? 'unknown');

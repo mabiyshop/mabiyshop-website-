@@ -1,0 +1,91 @@
+            }
+
+            //Affiliate Commision
+			if ($user->affiliate_referer && $productIds && $aff_commission_amount > 0) {
+				$affData['user_id'] = $user->affiliate_referer;
+				$affData['buyer_id'] = $user->id;
+				$affData['product_ids'] = implode(',', $productIds);
+				$affData['order_id'] = $order_id;
+				$affData['commission_amount'] = $aff_commission_amount;
+				$affData['note'] = '';
+				$affData['status'] = 1;
+				DB::table('affiliate_history')->insert($affData);
+			}
+
+			DB::table('carts')->where('user_id', $user_id)->delete();
+			DB::commit();
+			} catch (\Throwable $exception) {
+				DB::rollBack();
+				\Log::error('POS order transaction failed.', ['user_id' => $user_id, 'error' => $exception->getMessage()]);
+				return response()->json(['status' => 0, 'message' => 'Unable to place the order. No changes were saved.'], 200);
+			}
+
+			$invoice = DB::table('order_details')->where('order_id', $order_id)->get();
+			foreach ($invoice as $key => $item) {
+				$p = \Helper::get_product_by_id($item->product_id);
+				$item->image = $p->default_image ?? null;
+				$item->title = $p->title ?? null;
+				$item->slug  = $p->slug ?? null;
+			}
+
+			$in['total'] = $total_amount;
+			$in['sub_total'] = $sub_total;
+			$in['discount_amount'] = $discount_amount;
+			$in['coupon_amount'] = $coupon_amount;
+			$in['order_id'] = $order_id;
+			$in['products'] = $invoice;
+			$in['shipping_cost'] = $shipping_cost;
+
+			$data['status'] = 1;
+			$data['message'] = 'Order placed successfully.';
+			$data['invoice'] = $in;
+
+			//Send Email
+			$order = Order::find($order_id);
+
+			if ($request->server('HTTP_HOST') != '127.0.0.1:8000') {
+				if ($email = $user->email) {
+					try {
+						\Helper::sendEmail($email, 'Order Placed', $order, 'invoice');
+					} catch (\Throwable $exception) {
+						\Log::warning('POS order confirmation email failed.', ['order_id' => $order_id]);
+					}
+				}
+			}
+
+			//Send Push notifications
+			//Customer
+			$message = [
+				'order_id' =>  'MS' . date('y', strtotime(Carbon::now())) . $order_id,
+				'type' => 'order',
+				'message' => 'Order placed successfully!',
+			];
+
+			//Seller
+			foreach ($sellerIdsForNotification as $val) {
+				$seller = Admins::find($val);
+				try {
+					\Helper::sendPushNotification($val, 2, 'Order Placed', 'Order placed successfully!', json_encode($message));
+				} catch (\Throwable $exception) {
+					\Log::warning('POS seller push notification failed.', ['order_id' => $order_id, 'seller_id' => $val]);
+				}
+				// \Helper::sendSms($seller->phone, 'একটি নতুন অর্ডার সফলভাবে স্থাপন করা হয়েছে! অর্ডার আইডি হল  #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+			}
+
+			// Customer
+			try {
+				\Helper::sendSms($user->phone, 'অর্ডার সফলভাবে স্থাপন করা হয়েছে! আপনার অর্ডারের জন্য আপনাকে ধন্যবাদ. আপনার অর্ডার আইডি #' . 'MS' . date('y', strtotime(Carbon::now())) . $order_id);
+			} catch (\Throwable $exception) {
+				\Log::warning('POS customer SMS failed.', ['order_id' => $order_id, 'user_id' => $user->id]);
+			}
+
+            return response()->json($data, 200);
+
+        }else {
+            $data['status'] = 0;
+            $data['message'] = 'You have to select customer.';
+            return response()->json($data, 200);
+        }
+    }
+
+    public function order_function1(Request $request){

@@ -3366,6 +3366,7 @@ import jquery from '../../../../../../public/assets/js/jquery.js';
       margin: 14px 0 0 !important;
       padding: 0;
       position: static !important;
+      transform: none;
       float: none !important;
       clear: both;
    }

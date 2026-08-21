@@ -32,9 +32,23 @@ class MetaConversionSenderService
         $pixelId = $this->stringOption($options, 'pixel_id');
         $accessToken = $this->stringOption($options, 'access_token');
         $testEventCode = $this->stringOption($options, 'test_event_code');
+        $clientIpAddress = $this->ipOption($options, 'client_ip_address');
+        $clientUserAgent = $this->stringOption($options, 'client_user_agent');
+        $fbp = $this->stringOption($options, 'fbp');
+        $fbc = $this->stringOption($options, 'fbc');
+        $hashedEmail = $this->hashedEmailOption($options, 'email');
         $eventId = (string) $payload['event_id'];
         $endpoint = $this->endpoint($pixelId);
-        $requestBody = $this->requestBody($payload, $normalizedPhone, $testEventCode);
+        $requestBody = $this->requestBody(
+            $payload,
+            $normalizedPhone,
+            $testEventCode,
+            $clientIpAddress,
+            $clientUserAgent,
+            $fbp,
+            $fbc,
+            $hashedEmail
+        );
 
         unset($normalizedPhone);
 
@@ -42,6 +56,7 @@ class MetaConversionSenderService
             return [
                 'sent' => false,
                 'dry_run' => true,
+                'reason' => 'dry_run',
                 'endpoint' => $endpoint,
                 'event_id' => $eventId,
                 'request_body' => $requestBody,
@@ -135,7 +150,16 @@ class MetaConversionSenderService
         return null;
     }
 
-    private function requestBody(array $payload, string $normalizedPhone, ?string $testEventCode): array
+    private function requestBody(
+        array $payload,
+        string $normalizedPhone,
+        ?string $testEventCode,
+        ?string $clientIpAddress,
+        ?string $clientUserAgent,
+        ?string $fbp,
+        ?string $fbc,
+        ?string $hashedEmail
+    ): array
     {
         $body = [
             'data' => [[
@@ -154,6 +178,26 @@ class MetaConversionSenderService
                 ],
             ]],
         ];
+
+        if ($clientIpAddress !== null) {
+            $body['data'][0]['user_data']['client_ip_address'] = $clientIpAddress;
+        }
+
+        if ($clientUserAgent !== null) {
+            $body['data'][0]['user_data']['client_user_agent'] = $clientUserAgent;
+        }
+
+        if ($fbp !== null) {
+            $body['data'][0]['user_data']['fbp'] = $fbp;
+        }
+
+        if ($fbc !== null) {
+            $body['data'][0]['user_data']['fbc'] = $fbc;
+        }
+
+        if ($hashedEmail !== null) {
+            $body['data'][0]['user_data']['em'] = [$hashedEmail];
+        }
 
         if ($testEventCode !== null) {
             $body['test_event_code'] = $testEventCode;
@@ -211,6 +255,28 @@ class MetaConversionSenderService
         $value = $options[$key] ?? null;
 
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    private function ipOption(array $options, string $key): ?string
+    {
+        $value = $this->stringOption($options, $key);
+
+        return $value !== null && filter_var($value, FILTER_VALIDATE_IP) !== false ? $value : null;
+    }
+
+    private function hashedEmailOption(array $options, string $key): ?string
+    {
+        $value = $this->stringOption($options, $key);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        return filter_var($normalized, FILTER_VALIDATE_EMAIL) !== false
+            ? hash('sha256', $normalized)
+            : null;
     }
 
     private function providerSummary(int $httpStatus, array $response): array

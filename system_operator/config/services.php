@@ -38,6 +38,12 @@ return [
 		'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
 		'redirect' => env('APP_FRONTEND').'/api/v1/social-login/facebook',
 	],
+	'meta_capi' => [
+		'pixel_id' => env('META_PIXEL_ID'),
+		'access_token' => env('META_ACCESS_TOKEN'),
+		'test_event_code' => env('META_CAPI_TEST_EVENT_CODE'),
+		'dry_run' => env('META_DRY_RUN', true),
+	],
 	'google' => [
 		'client_id' => env('GOOGLE_CLIENT_ID'),
 		'client_secret' => env('GOOGLE_CLIENT_SECRET'),

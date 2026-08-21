@@ -1077,6 +1077,25 @@
                     this.$set(this.relatedCartLoading, product.id, false);
                 });
             },
+            readCookieValue(name){
+                if(typeof document === 'undefined' || !document.cookie){
+                    return '';
+                }
+                const prefix = encodeURIComponent(name) + '=';
+                const cookies = document.cookie.split(';');
+                for(let index = 0; index < cookies.length; index++){
+                    const cookie = cookies[index].trim();
+                    if(cookie.indexOf(prefix) === 0){
+                        const value = cookie.substring(prefix.length);
+                        try {
+                            return decodeURIComponent(value);
+                        } catch (error) {
+                            return value;
+                        }
+                    }
+                }
+                return '';
+            },
             proceedToPay(){
                 if(this.orderSubmitting){
                     return;
@@ -1142,7 +1161,9 @@
                         guest_shipping_thana: this.guestShippingThana || this.resolvedShippingThana || '',
                         guest_shipping_union: this.guestShippingUnion || this.resolvedShippingUnion || '',
                         session_key: localStorage.getItem("session_key") || '',
-                        guest_address_id: this.checkoutCustomerAddressId || ''
+                        guest_address_id: this.checkoutCustomerAddressId || '',
+                        fbp: this.readCookieValue('_fbp'),
+                        fbc: this.readCookieValue('_fbc')
                     }
          
                         

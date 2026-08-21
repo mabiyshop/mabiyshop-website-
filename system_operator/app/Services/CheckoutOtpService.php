@@ -137,14 +137,51 @@ class CheckoutOtpService
             return ['status' => 0, 'message' => 'Maximum OTP generation limit exceeds for today.'];
         }
 
+        $otpStartedAt = microtime(true);
+        $phoneHash = md5($normalizedPhone);
+        \Log::info('Checkout OTP send timing', [
+            'stage' => 'before_generation',
+            'phone_hash' => $phoneHash,
+            'otp_total_ms' => 0,
+        ]);
+
         $otp = random_int(1000, 9999);
         $msg = 'আপনার OTP CODE:' . $otp . ' কোডটি ৫ মিনিট পর অকার্যকর হয়ে যাবে';
+
+        $smsStartedAt = microtime(true);
+        \Log::info('Checkout OTP send timing', [
+            'stage' => 'before_sms_provider',
+            'phone_hash' => $phoneHash,
+            'otp_pre_sms_ms' => round(($smsStartedAt - $otpStartedAt) * 1000, 2),
+        ]);
 
         try {
             \Helper::sendSmsNonMusking($normalizedPhone, $msg);
         } catch (Throwable $e) {
+            $smsFinishedAt = microtime(true);
+            \Log::info('Checkout OTP send timing', [
+                'stage' => 'after_sms_provider',
+                'phone_hash' => $phoneHash,
+                'sms_provider_ms' => round(($smsFinishedAt - $smsStartedAt) * 1000, 2),
+                'result' => 'failed',
+            ]);
+            \Log::info('Checkout OTP send timing', [
+                'stage' => 'before_response',
+                'phone_hash' => $phoneHash,
+                'otp_total_ms' => round(($smsFinishedAt - $otpStartedAt) * 1000, 2),
+                'otp_post_sms_ms' => 0,
+                'result' => 'failed',
+            ]);
             return ['status' => 0, 'message' => 'Failed to send OTP.'];
         }
+
+        $smsFinishedAt = microtime(true);
+        \Log::info('Checkout OTP send timing', [
+            'stage' => 'after_sms_provider',
+            'phone_hash' => $phoneHash,
+            'sms_provider_ms' => round(($smsFinishedAt - $smsStartedAt) * 1000, 2),
+            'result' => 'completed',
+        ]);
 
         $cacheKey = 'checkout_otp:' . md5($normalizedPhone);
         Cache::put($cacheKey, [
@@ -156,6 +193,15 @@ class CheckoutOtpService
         Cache::put('checkout_otp_attempts:' . md5($normalizedPhone), 0, now()->addMinutes(5));
 
         Cache::put($dailyLimitKey, $dailyCount + 1, now()->endOfDay());
+
+        $responseStartedAt = microtime(true);
+        \Log::info('Checkout OTP send timing', [
+            'stage' => 'before_response',
+            'phone_hash' => $phoneHash,
+            'otp_total_ms' => round(($responseStartedAt - $otpStartedAt) * 1000, 2),
+            'otp_post_sms_ms' => round(($responseStartedAt - $smsFinishedAt) * 1000, 2),
+            'result' => 'success',
+        ]);
 
         return ['status' => 1, 'message' => 'OTP sent successfully.'];
     }
