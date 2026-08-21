@@ -48,6 +48,7 @@ class ApplyOrderRiskDecision
                 ], 403);
             }
 
+            $request->attributes->set('courier_history', $courierHistory);
             $request->attributes->set('risk_decision', $decision);
         } catch (Throwable $exception) {
             return response()->json([

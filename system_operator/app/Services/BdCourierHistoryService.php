@@ -23,7 +23,7 @@ class BdCourierHistoryService
             return $this->emptyResult($normalizedPhone, 'unavailable', 'missing_api_key');
         }
 
-        $endpoint = $options['endpoint'] ?? config('services.bdcourier.endpoint', env('BD_COURIER_API_ENDPOINT'));
+        $endpoint = $options['endpoint'] ?? config('services.bdcourier.endpoint', env('BD_COURIER_API_ENDPOINT', 'https://api.bdcourier.com/courier-check'));
 
         if (!is_string($endpoint) || trim($endpoint) === '') {
             return $this->emptyResult($normalizedPhone, 'unavailable', 'missing_endpoint');
@@ -31,9 +31,9 @@ class BdCourierHistoryService
 
         try {
             $response = Http::acceptJson()
-                ->withHeaders(['api_key' => $apiKey])
+                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
                 ->timeout(5)
-                ->post($endpoint, ['phone_number' => $normalizedPhone]);
+                ->post($endpoint, ['phone' => $normalizedPhone]);
 
             if (!$response->successful()) {
                 return $this->emptyResult($normalizedPhone, 'unavailable', 'provider_http_error');
@@ -41,7 +41,9 @@ class BdCourierHistoryService
 
             $payload = $response->json();
 
-            if (!is_array($payload) || ($payload['status'] ?? false) !== true) {
+            $providerStatus = $payload['status'] ?? null;
+
+            if (!is_array($payload) || !($providerStatus === true || $providerStatus === 'success')) {
                 return $this->emptyResult($normalizedPhone, 'unavailable', 'provider_rejected_request');
             }
 

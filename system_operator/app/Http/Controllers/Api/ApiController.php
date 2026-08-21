@@ -4813,6 +4813,36 @@ class ApiController extends Controller
 			$guestCustomer->save();
 			$user = $guestCustomer;
 		}
+                if (!is_array($request->attributes->get('risk_decision'))) {
+                        try {
+                                $mabiyHistory = app(\App\Services\OrderRiskService::class)->getMabiyHistory((int) $user->id);
+                                $courierHistory = app(\App\Services\CourierHistoryProviderService::class)->getHistory((string) $user->phone);
+                                $riskDecision = app(\App\Services\CustomerRiskDecisionService::class)->decide(
+                                        $mabiyHistory,
+                                        $courierHistory,
+                                        ['manual_block' => false]
+                                );
+
+                                if (($riskDecision['order_allowed'] ?? true) === false) {
+                                        return response()->json([
+                                                'status' => 0,
+                                                'error' => 'order_rejected_by_risk',
+                                                'message' => 'Order cannot be processed at this time.',
+                                                'risk_decision' => $riskDecision,
+                                        ], 403);
+                                }
+
+                                $request->attributes->set('courier_history', $courierHistory);
+                                $request->attributes->set('risk_decision', $riskDecision);
+                        } catch (\Throwable $exception) {
+                                return response()->json([
+                                        'status' => 0,
+                                        'error' => 'risk_check_failed',
+                                        'message' => 'Risk check failed. Please try again later.',
+                                ], 500);
+                        }
+                }
+
 
 		$pickpoint =  Pickpoints::where('id', $user->default_address_id)->first();
 
@@ -5193,6 +5223,20 @@ class ApiController extends Controller
 			$orderData['note']    = $request->note;
 			$orderData['total_packaging_cost']  = $packaging_cost;
 			$orderData['total_security_charge'] = $security_charge;
+
+                   $courierHistory = $request->attributes->get('courier_history');
+
+                   if (is_array($courierHistory)) {
+                           $orderData['courier_history_snapshot'] = json_encode($courierHistory, JSON_UNESCAPED_UNICODE);
+                           $orderData['courier_success_rate'] = $courierHistory['combined']['success_rate'] ?? null;
+                   }
+                   $riskDecision = $request->attributes->get('risk_decision');
+
+                   if (is_array($riskDecision)) {
+                           $orderData['risk_level'] = $riskDecision['risk_level'] ?? null;
+                           $orderData['manual_review'] = (bool) ($riskDecision['manual_review'] ?? false);
+                           $orderData['risk_decision_snapshot'] = json_encode($riskDecision, JSON_UNESCAPED_UNICODE);
+                   }
 			DB::beginTransaction();
 			try {
 			if ($voucherActivationCode !== null) {
