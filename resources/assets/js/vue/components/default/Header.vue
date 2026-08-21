@@ -1064,7 +1064,7 @@
                         <li data-coupon-discount="0" v-else class="coupon_discount"  > <b>{{ $t('Coupon Discount') }} (-) </b>  <span>BDT 0</span></li>
                         <li data-voucher-discount="0" class="show_voucher_discount"  ><b> {{ $t('Voucher Discount') }} (-)</b><span class="v_amount">BDT 0</span></li>
 
-                        <li> <b class="totaprice" id="totalPrice" :data-total-price="sub_total+cartData.shipping_cost" > {{ $t('Total') }} </b>  <span> BDT&nbsp;<span class="calculatedTotal"> {{ finalCalculatedTotal}}</span></span></li>
+                        <li> <b class="totaprice" id="totalPrice" :data-total-price="sub_total+cartData.shipping_cost" > {{ $t('Total') }} </b>  <span> BDT&nbsp;<span class="legacy-cart-calculated-total"> {{ finalCalculatedTotal}}</span></span></li>
                      </ul>
 
                      <span v-if="site_info.partial_payment_enable == '1'">
