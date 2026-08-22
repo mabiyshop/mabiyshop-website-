@@ -1,0 +1,189 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Throwable;
+
+class BdCourierHistoryService
+{
+    private const COURIERS = ['pathao', 'steadfast', 'paperfly', 'redx', 'carrybee'];
+
+    public function getHistory(string $phone, array $options = []): array
+    {
+        $normalizedPhone = $this->normalizePhone($phone);
+
+        if ($normalizedPhone === null) {
+            return $this->emptyResult('', 'invalid_phone', 'invalid_phone');
+        }
+
+        $apiKey = $options['api_key'] ?? config('services.bdcourier.api_key', env('BD_COURIER_API_KEY'));
+
+        if (!is_string($apiKey) || trim($apiKey) === '') {
+            return $this->emptyResult($normalizedPhone, 'unavailable', 'missing_api_key');
+        }
+
+        $endpoint = $options['endpoint'] ?? config('services.bdcourier.endpoint', env('BD_COURIER_API_ENDPOINT', 'https://api.bdcourier.com/courier-check'));
+
+        if (!is_string($endpoint) || trim($endpoint) === '') {
+            return $this->emptyResult($normalizedPhone, 'unavailable', 'missing_endpoint');
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->withHeaders(['Authorization' => 'Bearer ' . $apiKey])
+                ->timeout(5)
+                ->post($endpoint, ['phone' => $normalizedPhone]);
+
+            if (!$response->successful()) {
+                return $this->emptyResult($normalizedPhone, 'unavailable', 'provider_http_error');
+            }
+
+            $payload = $response->json();
+
+            $providerStatus = $payload['status'] ?? null;
+
+            if (!is_array($payload) || !($providerStatus === true || $providerStatus === 'success')) {
+                return $this->emptyResult($normalizedPhone, 'unavailable', 'provider_rejected_request');
+            }
+
+            $data = $payload['data'] ?? null;
+
+            if (!is_array($data)) {
+                return $this->emptyResult($normalizedPhone, 'unavailable', 'malformed_provider_response');
+            }
+
+            return $this->normalizeResponse($normalizedPhone, $data);
+        } catch (Throwable $exception) {
+            return $this->emptyResult($normalizedPhone, 'unavailable', 'provider_request_failed');
+        }
+    }
+
+    private function normalizePhone(string $phone): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $phone);
+
+        if (strpos($digits, '880') === 0) {
+            $digits = '0' . substr($digits, 3);
+        }
+
+        return preg_match('/^01\d{9}$/', $digits) === 1 ? $digits : null;
+    }
+
+    private function normalizeResponse(string $phone, array $data): array
+    {
+        $couriers = [];
+        $combinedTotal = 0;
+        $combinedSuccessful = 0;
+        $combinedFailed = 0;
+
+        foreach (self::COURIERS as $courierName) {
+            $summary = $data[$courierName] ?? null;
+            $courier = $this->normalizeCourier($summary);
+            $couriers[$courierName] = $courier;
+
+            if (
+                $courier['available']
+                && $courier['total'] !== null
+                && $courier['successful'] !== null
+                && $courier['failed'] !== null
+            ) {
+                $combinedTotal += $courier['total'];
+                $combinedSuccessful += $courier['successful'];
+                $combinedFailed += $courier['failed'];
+            }
+        }
+
+        return [
+            'phone' => $phone,
+            'status' => 'ok',
+            'couriers' => $couriers,
+            'combined' => [
+                'total' => $combinedTotal,
+                'successful' => $combinedSuccessful,
+                'failed' => $combinedFailed,
+                'success_rate' => $combinedTotal > 0
+                    ? round(($combinedSuccessful / $combinedTotal) * 100, 2)
+                    : 0.0,
+            ],
+        ];
+    }
+
+    private function normalizeCourier($summary): array
+    {
+        $normalized = $this->emptyCourier();
+
+        if (!is_array($summary)) {
+            return $normalized;
+        }
+
+        $normalized['available'] = true;
+        $normalized['data_type'] = ($summary['data_type'] ?? 'delivery') === 'rating'
+            ? 'rating'
+            : 'delivery';
+        $normalized['rating'] = $summary['customer_rating'] ?? null;
+        $normalized['risk_level'] = $summary['risk_level'] ?? null;
+
+        if ($normalized['data_type'] === 'rating') {
+            $normalized['success_rate'] = $this->numericValue($summary['success_rate'] ?? null);
+            return $normalized;
+        }
+
+        $total = $this->integerValue($summary['total_parcel'] ?? null);
+        $successful = $this->integerValue($summary['success_parcel'] ?? null);
+        $failed = $this->integerValue($summary['cancelled_parcel'] ?? null);
+
+        if ($total === null || $successful === null || $failed === null) {
+            return $normalized;
+        }
+
+        $normalized['total'] = $total;
+        $normalized['successful'] = $successful;
+        $normalized['failed'] = $failed;
+        $normalized['success_rate'] = $total > 0
+            ? round(($successful / $total) * 100, 2)
+            : 0.0;
+
+        return $normalized;
+    }
+
+    private function emptyResult(string $phone, string $status, string $error): array
+    {
+        return [
+            'phone' => $phone,
+            'status' => $status,
+            'error' => $error,
+            'couriers' => array_fill_keys(self::COURIERS, $this->emptyCourier()),
+            'combined' => [
+                'total' => 0,
+                'successful' => 0,
+                'failed' => 0,
+                'success_rate' => 0.0,
+            ],
+        ];
+    }
+
+    private function emptyCourier(): array
+    {
+        return [
+            'available' => false,
+            'data_type' => null,
+            'total' => null,
+            'successful' => null,
+            'failed' => null,
+            'success_rate' => null,
+            'rating' => null,
+            'risk_level' => null,
+        ];
+    }
+
+    private function integerValue($value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    private function numericValue($value): ?float
+    {
+        return is_numeric($value) ? round((float) $value, 2) : null;
+    }
+}
